@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageFX Generator</title>
+    <style>
+        :root {
+            /* Base */
+            --bg: #000000;
+            --bg-elev: rgba(0, 0, 0, 0.85);
+            --card: rgba(255, 255, 255, 0.03);
+            --input: rgba(255, 255, 255, 0.03);
+            --text: #ffffff;
+            --muted: #94a3b8;
+            --muted-2: #64748b;
+            --footer-text: #475569;
+            /* Borders */
+            --border: rgba(255, 255, 255, 0.06);
+            --border-input: rgba(255, 255, 255, 0.12);
+            --border-green: rgba(74, 222, 128, 0.3);
+            --border-red: rgba(239, 68, 68, 0.3);
+            --border-purple: rgba(79, 70, 229, 0.3);
+            --border-orange: rgba(245, 158, 11, 0.2);
+            /* Buttons */
+            --btn-default: rgba(255, 255, 255, 0.05);
+            --btn-green: rgba(74, 222, 128, 0.15);
+            --btn-green-hover: rgba(74, 222, 128, 0.25);
+            --btn-red: rgba(239, 68, 68, 0.15);
+            --btn-red-hover: rgba(239, 68, 68, 0.25);
+            --btn-purple: rgba(79, 70, 229, 0.15);
+            --btn-purple-hover: rgba(79, 70, 229, 0.25);
+            /* Solids */
+            --green: #4ade80;
+            --green-2: #34d399;
+            --red: #ef4444;
+            --red-2: #fca5a5;
+            --purple: #a5b4fc;
+            --orange: #f59e0b;
+            /* Gradients */
+            --progress: linear-gradient(to right, var(--green), var(--green-2));
+            --progress-warn: linear-gradient(to right, #f59e0b, #f97316);
+        }
+        [data-theme="light"] {
+            --bg: #f6f7fb;
+            --bg-elev: #ffffff;
+            --card: #ffffff;
+            --text: #0f172a;
+            --muted: #475569;
+            --border: #e5e7eb;
+            --input: #f8fafc;
+            --accent: #4f46e5;
+            --accent-600: #4338ca;
+            --danger: #ef4444;
+            --danger-600: #dc2626;
+            --success: #16a34a;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            color: var(--text);
+            background: var(--bg);
+        }
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .brand {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--green), var(--green-2));
+            display: grid;
+            place-items: center;
+            color: rgb(255, 255, 255);
+            font-weight: 700;
+        }
+        .title h1 { font-size: 20px; margin: 0; }
+        .subtitle { color: var(--muted); font-size: 13px; margin-top: 2px; }
+        .toolbar { display: flex; align-items: center; gap: 8px; }
+        .btn {
+            border: 1px solid var(--border-input);
+            background: var(--btn-default);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all .2s ease;
+        }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn:hover { filter: brightness(1.05); }
+        .btn-danger { background: var(--btn-red); border-color: var(--border-red); color: var(--red-2); }
+        .btn-danger:hover { background: var(--btn-red-hover); }
+        .btn-purple { background: var(--btn-purple); border-color: var(--border-purple); color: var(--purple); }
+        .btn-purple:hover { background: var(--btn-purple-hover); }
+        .btn-main { background: var(--btn-green); border-color: var(--border-green); color: var(--green); font-weight: 500; height: 38px; }
+        .btn-main:hover { background: var(--btn-green-hover); }
+        .btn-main.active { background: var(--btn-red); border-color: var(--border-red); color: var(--red); }
+        .btn-main.active:hover { background: var(--btn-red-hover); }
+        /* Density: compact adjustments */
+        .density-compact .card { padding: 12px; }
+        .density-compact input, .density-compact select, .density-compact textarea { padding: 8px 10px; font-size: 13px; }
+        .density-compact .btn { padding: 8px 10px; font-size: 13px; border-radius: 6px; }
+        .density-compact .chip { padding: 4px 8px; font-size: 11px; }
+        .density-compact .title h1 { font-size: 18px; }
+        /* Tabs */
+        .tabs { position: sticky; top: 0; z-index: 6; background: color-mix(in oklab, var(--card) 90%, transparent); padding: 6px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; display: flex; gap: 6px; }
+        .tab-btn { flex: 1; text-align: center; padding: 8px 10px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); border-radius: 8px; cursor: pointer; font-size: 13px; }
+        .tab-btn.active { border-color: var(--border-green); color: var(--green); background: var(--btn-green); }
+        .hidden { display: none !important; }
+        .layout {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        .left-col {
+            min-width: 0; /* Prevent overflow */
+        }
+        .right-col {
+            position: sticky;
+            top: 10px;
+            align-self: start;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-width: 0; /* Prevent overflow */
+        }
+        @media (max-width: 768px) { 
+            .layout { grid-template-columns: 1fr; }
+            .right-col { position: static; }
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .card h2 { font-size: 16px; margin: 0 0 12px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+        /* Right column specific styling */
+        .right-col .card { padding: 12px; }
+        .right-col .card h2 { font-size: 14px; margin: 0 0 10px 0; font-weight: 600; }
+        .right-col .form-group { margin-bottom: 10px; }
+        .right-col .input-help { font-size: 11px; margin-top: 3px; line-height: 1.3; }
+        .right-col .grid-2 { grid-template-columns: 1fr; gap: 6px; } /* Stack in single column */
+        .right-col input, .right-col select, .right-col textarea { font-size: 12px; padding: 8px; }
+        .right-col label { font-size: 11px; font-weight: 500; }
+        /* Setting tabs styling */
+        .setting-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+        .setting-tab-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            background: var(--bg-elev);
+            color: var(--text);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .setting-tab-btn:hover {
+            background: var(--input);
+            border-color: var(--border-green);
+        }
+        .setting-tab-btn.active {
+            background: var(--btn-green);
+            color: var(--green);
+            border-color: var(--border-green);
+        }
+        .setting-content {
+            display: block;
+        }
+        .setting-content.hidden {
+            display: none;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 12px; color: var(--muted); }
+        input, select, textarea {
+            width: 100%;
+            background: var(--input);
+            color: var(--text);
+            border: 1px solid var(--border-input);
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color .2s ease, box-shadow .2s ease;
+        }
+        .select-black { background: #000000 !important; color: #ffffff; border-color: var(--border-input); }
+        #aspectRatio option { background: #000000; color: #ffffff; }
+        input:focus, select:focus, textarea:focus { border-color: rgba(79, 70, 229, 0.5); box-shadow: none; }
+        textarea { min-height: 120px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        .input-help, .prompt-help { font-size: 12px; color: var(--muted); }
+        .row { display: flex; gap: 8px; align-items: center; }
+        .input-with-button { display: flex; gap: 8px; align-items: center; }
+        .input-with-button input { flex: 1; cursor: context-menu; }
+        .toggle-visibility { padding: 10px 12px; }
+        .prompts header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .prompt-item { display: flex; flex-direction: column; gap: 8px; }
+        .prompt-controls { display: flex; gap: 8px; align-items: end; }
+        .prompt-controls .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .folder-input { width: 100%; }
+        .remove-btn { padding: 8px 10px; }
+        .prompts { position: sticky; top: 12px; z-index: 5; align-self: start; }
+        .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+        .chip { background: rgba(255,255,255,0.06); border: 1px solid var(--border-input); color: var(--text); border-radius: 999px; padding: 6px 10px; font-size: 12px; cursor: pointer; user-select: none; }
+        .chip.active { background: var(--btn-green); border-color: var(--border-green); color: var(--green); }
+        .chip:focus { outline: none; border-color: var(--border-green); }
+        .options-section { margin-top: 8px; }
+        .options-header { display:flex; align-items:center; justify-content: space-between; gap: 8px; }
+        .options-body { margin-top: 8px; }
+        .options-body.collapsed { display: none; }
+        /* Skeletons */
+        .skeleton { position: relative; overflow: hidden; border-radius: 6px; height: 120px; background: rgba(255,255,255,0.06); }
+        .skeleton::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); transform: translateX(-100%); animation: shimmer 1.4s infinite; }
+        @keyframes shimmer { 100% { transform: translateX(100%); } }
+        .status { display: none; margin-top: 12px; }
+        .status.active { display: block; }
+        .status h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+        .status-text { background: var(--input); border: 1px solid var(--border); padding: 10px 12px; border-radius: 10px; min-height: 42px; display: flex; align-items: center; }
+        .progress { margin-top: 8px; height: 4px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+        .progress-bar { height: 100%; width: 0%; background: var(--progress); transition: width .3s ease; }
+        .sticky-actions { position: sticky; bottom: 0; background: color-mix(in oklab, var(--card) 90%, transparent); padding-top: 10px; backdrop-filter: blur(6px); }
+        .context-menu { display: none; position: fixed; background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); padding: 6px 0; z-index: 1000; }
+        .context-menu-item { padding: 8px 12px; cursor: pointer; font-size: 14px; }
+        .context-menu-item:hover { background: color-mix(in oklab, var(--card) 90%, white 10%); }
+        .divider { height: 1px; background: var(--border); margin: 10px 0; }
+        .footer-note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 16px; }
+        .theme-toggle { display: inline-flex; align-items: center; gap: 8px; }
+        /* Status badge */
+        .badge { font-size: 0.7em; padding: 3px 8px; border-radius: 12px; border: 1px solid transparent; }
+        .badge-inactive { background: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: var(--border-red); }
+        .badge-active { background: rgba(74, 222, 128, 0.1); color: var(--green); border-color: var(--border-green); }
+        /* Remove number arrows */
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+        input[type=number] { appearance: textfield; -moz-appearance: textfield; }
+        /* Pulse animation (for optional countdown) */
+        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+        /* Modal */
+        .modal { position: fixed; inset: 0; display: none; place-items: center; z-index: 2000; }
+        .modal.active { display: grid; }
+        .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); }
+        .modal-card { position: relative; width: min(640px, 92vw); max-height: 90vh; overflow: auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+        .modal-card h3 { margin: 0 0 8px; font-size: 15px; }
+        .modal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .modal-footer { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; color: var(--footer-text); font-size: 12px; }
+        pre.code { background: var(--input); border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow: auto; font-size: 12px; }
+        .meta-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; table-layout: fixed; }
+        .meta-table td { border-top: 1px solid var(--border); padding: 6px 8px; vertical-align: top; word-break: break-word; }
+        .meta-table td:first-child { width: 130px; color: var(--muted); }
+        #metaPrompt { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <div class="title">
+                <div class="brand">FX</div>
+                <div>
+        <h1>ImageFX Generator</h1>
+        
+                </div>
+            </div>
+            <div class="toolbar">
+                <button class="btn" id="densityToggle" type="button" title="Toggle density">Compact</button>
+                <button class="btn theme-toggle" id="themeToggle" type="button" title="Toggle theme">
+                    <span id="themeIcon">🌙</span>
+                    <span id="themeText">Dark</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="layout">
+            <div class="left-col">
+            <section class="card prompts" id="sectionPrompts">
+                <header style="gap: 12px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <h2 style="margin:0;">Prompts</h2>
+                        <span id="runStatus" class="badge badge-inactive">Idle</span>
+                    </div>
+                    <div class="row" style="gap:8px;">
+                        <button class="btn" type="button" onclick="addPrompt()">Add Prompt Box</button>
+                        <!-- Preview removed as Scan Folder covers it -->
+                        <button class="btn" type="button" onclick="openOutputFolder()">Open Folder</button>
+                        <button class="btn" type="button" onclick="scanOutputFolder()">Scan Folder</button>
+                    </div>
+                </header>
+                <div class="prompt-help">Enter each prompt on a new line. Each line is processed separately.</div>
+                <div id="promptContainer" style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 2;">
+                <div class="prompt-item">
+                    <textarea class="prompt-input" placeholder="Enter your prompts (one per line)"></textarea>
+                        <button class="btn btn-danger remove-btn" onclick="removePrompt(this)">Remove</button>
+                </div>
+            </div>
+                <div class="options-section" id="optionsSection" style="position: relative; z-index: 2;">
+                    <div class="options-header">
+                        <div class="input-help">Quick options (added to each prompt line)</div>
+                        <button type="button" class="btn" id="optionsToggle" aria-expanded="false" aria-controls="optionsBody">Show</button>
+                    </div>
+                    <div class="options-body collapsed" id="optionsBody">
+                <div id="chips" class="chips" role="listbox" aria-label="Style options">
+                    <div class="chip" data-text=", surreal">surreal</div>
+                    <div class="chip" data-text=", sketchy">sketchy</div>
+                    <div class="chip" data-text=", illustration">illustration</div>
+                    <div class="chip" data-text=", street photography">street photography</div>
+                    <div class="chip" data-text=", intricate">intricate</div>
+                    <div class="chip" data-text=", film still">film still</div>
+                    <div class="chip" data-text=", handmade">handmade</div>
+                    <div class="chip" data-text=", abstract">abstract</div>
+                    <div class="chip" data-text=", minimal">minimal</div>
+                    <div class="chip" data-text=", close up">close up</div>
+                    <div class="chip" data-text=", chiaroscuro">chiaroscuro</div>
+                    <div class="chip" data-text=", watercolor">watercolor</div>
+                    <div class="chip" data-text=", painting">painting</div>
+                    <div class="chip" data-text=", charcoal">charcoal</div>
+                    <div class="chip" data-text=", scifi">scifi</div>
+                    <div class="chip" data-text=", highly detailed">highly detailed</div>
+                    <div class="chip" data-text=", cinematic">cinematic</div>
+                    <div class="chip" data-text=", realistic">realistic</div>
+                    <div class="chip" data-text=", dslr">dslr</div>
+                    <div class="chip" data-text=", macro photo">macro photo</div>
+                    <div class="chip" data-text=", editorial photo">editorial photo</div>
+                    <div class="chip" data-text=", bokeh">bokeh</div>
+                    <div class="chip" data-text=", bleak">bleak</div>
+                    <div class="chip" data-text=", blue and orange">blue and orange</div>
+                    <div class="chip" data-text=", high contrast">high contrast</div>
+                    <div class="chip" data-text=", desaturated">desaturated</div>
+                    <div class="chip" data-text=", baroque">baroque</div>
+                    <div class="chip" data-text=", dream aesthetic">dream aesthetic</div>
+                    <div class="chip" data-text=", natural light">natural light</div>
+                    <div class="chip" data-text=", cool tones">cool tones</div>
+                    <div class="chip" data-text=", 35mm film">35mm film</div>
+                    <div class="chip" data-text=", neon light">neon light</div>
+                    <div class="chip" data-text=", photography">photography</div>
+                    <div class="chip" data-text=", dynamic">dynamic</div>
+                    <div class="chip" data-text=", dramatic">dramatic</div>
+                    </div>
+                </div>
+                </div>
+                <div class="sticky-actions" style="position: sticky; top: 10px; z-index: 3;">
+                    <button id="startBtn" class="btn btn-main" style="width: 100%;" onclick="startGeneration()">Start Generation</button>
+        <div id="status" class="status">
+            <h3>Generation Status</h3>
+                        <div class="status-text" id="statusText"></div>
+                        <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+                    </div>
+                    <!-- Preview section not needed -->
+        </div>
+            </section>
+            </div>
+            <div class="right-col">
+                <section class="card">
+                    <!-- Tab Buttons -->
+                    <div class="setting-tabs">
+                        <button class="setting-tab-btn active" data-target="settingsContent">Generation Settings</button>
+                        <button class="setting-tab-btn" data-target="authContent">Authentication</button>
+                    </div>
+                    
+                    <!-- Settings Content -->
+                    <div id="settingsContent" class="setting-content">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="generationCount">Generation Count</label>
+                                <input type="number" id="generationCount" min="1" value="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="imageCount">Images per Prompt</label>
+                                <input type="number" id="imageCount" min="1" max="8" value="8">
+                                <div class="input-help">Maximum 8 images per prompt.</div>
+                            </div>
+                            <div class="form-group">
+                                <label for="seed">Seed</label>
+                                <div class="row" style="gap:8px;">
+                                    <input type="number" id="seed" placeholder="Random when unlocked" style="flex:1;">
+                                    <label class="row" style="gap:6px; align-items:center;">
+                                        <input type="checkbox" id="seedLock"> Lock
+                                    </label>
+                                </div>
+                                <div class="input-help">Locked: uses provided seed. Unlocked: random seed per request.</div>
+                            </div>
+                            <div class="form-group">
+                                <label for="model">Model</label>
+                                <select id="model" class="select-black">
+                                    <option value="quality">Quality — Powered by Imagen 3</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="aspectRatio">Aspect Ratio</label>
+                                <select id="aspectRatio" class="select-black">
+                                    <option value="landscape">Landscape (16:9)</option>
+                                    <option value="portrait">Portrait (9:16)</option>
+                                    <option value="square">Square (1:1)</option>
+                                    <option value="mobile_portrait">Mobile Portrait (3:4)</option>
+                                    <option value="mobile_landscape">Mobile Landscape (4:3)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="outputDir">Output Directory</label>
+                                <input type="text" id="outputDir" placeholder="C:/output/folder">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label for="proxy">Proxy (optional)</label>
+                                <input type="text" id="proxy" placeholder="http://username:password@host:port">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Authentication Content -->
+                    <div id="authContent" class="setting-content hidden">
+                        <div class="form-group">
+                            <label for="authToken">Auth Token</label>
+                            <div class="input-with-button">
+                                <input type="password" id="authToken" placeholder="Right-click to paste auth token" readonly>
+                                <button type="button" class="btn toggle-visibility" onclick="toggleAuthTokenVisibility()">Show</button>
+                            </div>
+                            <div class="input-help">Right-click the field to paste from clipboard, or provide an auth file path below.</div>
+                        </div>
+                        <div class="row" style="margin-top:8px; gap:8px; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-purple" onclick="openTokenModal()">Auto Get Token</button>
+                            <button type="button" class="btn" onclick="pasteTokenFromClipboard()">Paste from Clipboard</button>
+                        </div>
+                        <div class="form-group">
+                            <label for="authFile">Auth File Path (optional)</label>
+                            <input type="text" id="authFile" placeholder="C:/path/to/.auth">
+                            <div class="input-help">When provided, overrides the token above.</div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+        
+        <!-- Folder Contents - Outside layout grid -->
+        <section class="card" id="folderStatus" style="display:none; margin-top: 20px;">
+            <h2 style="font-size:16px; margin:0 0 8px;">Folder Contents</h2>
+            <div class="input-help" id="folderCount"></div>
+            <div id="folderGrid" style="margin-top:8px; display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:8px;"></div>
+        </section>
+        <div id="contextMenu" class="context-menu">
+            <div class="context-menu-item" onclick="pasteAuthToken()">Paste Auth Token</div>
+        </div>
+        <div class="footer-note">ImageFX API UI • Built for speed and clarity @CopyRight Tim/Mony</div>
+        <!-- Token Helper Modal -->
+        <div id="tokenModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="tokenModalTitle">
+            <div class="modal-backdrop" onclick="closeTokenModal()"></div>
+            <div class="modal-card">
+                <h3 id="tokenModalTitle">Get Auth Token from ImageFX</h3>
+                <div class="input-help">Follow these quick steps to retrieve your token from <a href="https://labs.google/fx/tools/image-fx" target="_blank" rel="noopener" style="color: var(--green); text-decoration: none;">ImageFX</a>.</div>
+                <ol style="margin: 10px 0 0 18px; color: var(--muted); font-size: 13px;">
+                    <li>Open ImageFX in a new tab and sign in.</li>
+                    <li>Press F12 to open DevTools, switch to the Console tab.</li>
+                    <li>Paste the script below and press Enter, then copy the token shown.</li>
+                    <li>Come back here and click “Paste from Clipboard”.</li>
+                </ol>
+                <pre class="code" id="extractorCode"></pre>
+                <div class="modal-actions">
+                    <button class="btn" onclick="openImageFX()">Open ImageFX</button>
+                    <button class="btn btn-purple" onclick="copyExtractor()">Copy Token Extractor</button>
+                    <button class="btn btn-main" onclick="pasteTokenFromClipboard()">Paste from Clipboard</button>
+                    <button class="btn" onclick="closeTokenModal()">Close</button>
+                </div>
+                <div class="modal-footer">We cannot access other sites’ content directly due to browser security. Use the helper to grab the token safely.</div>
+            </div>
+        </div>
+        <!-- Image Detail Modal -->
+        <div id="detailModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="detailTitle">
+            <div class="modal-backdrop" onclick="closeDetail()"></div>
+            <div class="modal-card">
+                <h3 id="detailTitle">Image Details</h3>
+                <img id="detailImg" src="" alt="Preview" style="width:100%; max-height:60vh; object-fit:contain; border-radius:8px; border:1px solid var(--border); background: var(--input);" />
+                <table class="meta-table">
+                    <tr><td>File</td><td id="metaFile"></td></tr>
+                    <tr><td>Seed</td><td id="metaSeed"></td></tr>
+                    <tr><td>Prompt</td><td id="metaPrompt"></td></tr>
+                    <tr><td>Saved</td><td id="metaSaved"></td></tr>
+                    <tr><td>Model</td><td id="metaModel"></td></tr>
+                    <tr><td>Aspect Ratio</td><td id="metaAspect"></td></tr>
+                    <tr><td>Generation</td><td id="metaGen"></td></tr>
+                    <tr><td>Image #</td><td id="metaImgNum"></td></tr>
+                    <tr><td>Media ID</td><td id="metaMedia"></td></tr>
+                </table>
+                <div class="modal-actions">
+                    <button class="btn" onclick="closeDetail()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = (function() {
+            try {
+                const isLocal3000 = location.protocol.startsWith('http') && location.hostname === 'localhost' && location.port === '3000';
+                return isLocal3000 ? '' : 'http://localhost:3000';
+            } catch (_) {
+                return 'http://localhost:3000';
+            }
+        })();
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            const text = theme === 'dark' ? 'Light' : 'Dark';
+            const icon = theme === 'dark' ? '☀️' : '🌙';
+            document.getElementById('themeText').textContent = text;
+            document.getElementById('themeIcon').textContent = icon;
+        }
+        (function() {
+            const saved = localStorage.getItem('theme');
+            if (saved) { setTheme(saved); }
+            else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) { setTheme('light'); }
+            else { setTheme('dark'); }
+        })();
+        // Theme toggle moved to window load event
+
+        // Tabs behavior - REMOVED for side-by-side layout
+        // All sections are now always visible
+
+        // Density toggle
+        // Density toggle moved to window load event
+
+        window.addEventListener('load', () => {
+            // Prepare extractor code in modal
+            const extractor = `let script = document.querySelector("#__NEXT_DATA__");\nlet obj = JSON.parse(script.textContent);\nlet authToken = obj["props"]["pageProps"]["session"]["access_token"];\n\nwindow.prompt("Copy the auth token: ", authToken);`;
+            const codeEl = document.getElementById('extractorCode');
+            if (codeEl) codeEl.textContent = extractor;
+            const savedAuthToken = localStorage.getItem('authToken');
+            const savedAuthFile = localStorage.getItem('authFile');
+            const savedOutputDir = localStorage.getItem('outputDir');
+            const savedProxy = localStorage.getItem('proxy');
+            const savedPromptsData = localStorage.getItem('promptsData');
+            const savedPrompts = localStorage.getItem('prompts'); // Fallback for old format
+            const savedImageCount = localStorage.getItem('imageCount');
+            const savedGenerationCount = localStorage.getItem('generationCount');
+            const savedAspectRatio = localStorage.getItem('aspectRatio');
+            const savedSeed = localStorage.getItem('seed');
+            const savedSeedLock = localStorage.getItem('seedLock');
+            const savedModel = localStorage.getItem('model');
+            if (savedAuthToken) document.getElementById('authToken').value = savedAuthToken;
+            if (savedAuthFile) document.getElementById('authFile').value = savedAuthFile;
+            if (savedOutputDir) document.getElementById('outputDir').value = savedOutputDir;
+            if (savedProxy) document.getElementById('proxy').value = savedProxy;
+            if (savedImageCount) document.getElementById('imageCount').value = savedImageCount;
+            if (savedGenerationCount) document.getElementById('generationCount').value = savedGenerationCount;
+            if (savedAspectRatio) document.getElementById('aspectRatio').value = savedAspectRatio;
+            if (savedSeed) document.getElementById('seed').value = savedSeed;
+            if (savedSeedLock) document.getElementById('seedLock').checked = savedSeedLock === 'true';
+            if (savedModel) document.getElementById('model').value = savedModel;
+            
+            // Load prompts with folder data
+            const container = document.getElementById('promptContainer');
+            container.innerHTML = '';
+            if (savedPromptsData) {
+                const promptsData = JSON.parse(savedPromptsData);
+                promptsData.forEach(data => { addPrompt(data.prompt, data.folder); });
+            } else if (savedPrompts) {
+                // Fallback for old format
+                const prompts = JSON.parse(savedPrompts);
+                prompts.forEach(prompt => { addPrompt(prompt, ''); });
+            }
+
+            // Add all event listeners here after DOM is loaded
+            document.getElementById('authToken').addEventListener('change', saveToLocalStorage);
+            document.getElementById('authFile').addEventListener('change', saveToLocalStorage);
+            document.getElementById('outputDir').addEventListener('change', saveToLocalStorage);
+            document.getElementById('proxy').addEventListener('change', saveToLocalStorage);
+            document.getElementById('imageCount').addEventListener('change', saveToLocalStorage);
+            document.getElementById('generationCount').addEventListener('change', saveToLocalStorage);
+            document.getElementById('aspectRatio').addEventListener('change', saveToLocalStorage);
+            const seedEl = document.getElementById('seed');
+            const seedLockEl = document.getElementById('seedLock');
+            const modelEl = document.getElementById('model');
+            if (seedEl) seedEl.addEventListener('change', saveToLocalStorage);
+            if (seedLockEl) seedLockEl.addEventListener('change', saveToLocalStorage);
+            if (modelEl) modelEl.addEventListener('change', saveToLocalStorage);
+            document.getElementById('promptContainer').addEventListener('change', saveToLocalStorage);
+
+            // Chips handling
+            const chipsContainer = document.getElementById('chips');
+            if (chipsContainer) {
+                chipsContainer.addEventListener('click', (e) => {
+                    const t = e.target;
+                    if (t && t.classList.contains('chip')) {
+                        t.classList.toggle('active');
+                    }
+                });
+            }
+
+            // Options collapse state
+            const optionsToggle = document.getElementById('optionsToggle');
+            const optionsBody = document.getElementById('optionsBody');
+            const savedOptionsOpen = localStorage.getItem('optionsOpen');
+            if (savedOptionsOpen === 'true') {
+                optionsBody.classList.remove('collapsed');
+                optionsToggle.textContent = 'Hide';
+                optionsToggle.setAttribute('aria-expanded', 'true');
+            }
+            optionsToggle.addEventListener('click', () => {
+                const isCollapsed = optionsBody.classList.toggle('collapsed');
+                const open = !isCollapsed;
+                localStorage.setItem('optionsOpen', open ? 'true' : 'false');
+                optionsToggle.textContent = open ? 'Hide' : 'Show';
+                optionsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+
+            // Context menu for auth token
+            const contextMenu = document.getElementById('contextMenu');
+            const authTokenInput = document.getElementById('authToken');
+            authTokenInput.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                contextMenu.style.display = 'block';
+                contextMenu.style.left = e.pageX + 'px';
+                contextMenu.style.top = e.pageY + 'px';
+            });
+            document.addEventListener('click', function(e) {
+                if (!contextMenu.contains(e.target) && e.target !== authTokenInput) {
+                    contextMenu.style.display = 'none';
+                }
+            });
+            authTokenInput.addEventListener('keydown', function(e) { e.preventDefault(); });
+            authTokenInput.addEventListener('paste', function(e) { e.preventDefault(); });
+
+            // Theme toggle
+            document.getElementById('themeToggle').addEventListener('click', function() {
+                const current = document.documentElement.getAttribute('data-theme') || 'dark';
+                setTheme(current === 'dark' ? 'light' : 'dark');
+            });
+
+            // Density toggle
+            const savedDensity = localStorage.getItem('density') || 'normal';
+            if (savedDensity === 'compact') document.body.classList.add('density-compact');
+            const densityBtn = document.getElementById('densityToggle');
+            densityBtn.textContent = savedDensity === 'compact' ? 'Comfortable' : 'Compact';
+            densityBtn.addEventListener('click', () => {
+                const compact = !document.body.classList.contains('density-compact');
+                document.body.classList.toggle('density-compact', compact);
+                localStorage.setItem('density', compact ? 'compact' : 'normal');
+                densityBtn.textContent = compact ? 'Comfortable' : 'Compact';
+            });
+
+            // Setting tabs functionality
+            const settingTabs = document.querySelectorAll('.setting-tab-btn');
+            const settingContents = document.querySelectorAll('.setting-content');
+            const savedActiveSettingTab = localStorage.getItem('activeSettingTab') || 'settingsContent';
+            
+            // Initialize active tab
+            settingTabs.forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.dataset.target === savedActiveSettingTab) {
+                    tab.classList.add('active');
+                }
+            });
+            settingContents.forEach(content => {
+                content.classList.add('hidden');
+                if (content.id === savedActiveSettingTab) {
+                    content.classList.remove('hidden');
+                }
+            });
+
+            // Add click handlers
+            settingTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const targetId = tab.dataset.target;
+                    
+                    // Update tabs
+                    settingTabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    // Update content
+                    settingContents.forEach(c => c.classList.add('hidden'));
+                    document.getElementById(targetId).classList.remove('hidden');
+                    
+                    // Save state
+                    localStorage.setItem('activeSettingTab', targetId);
+                });
+            });
+        });
+
+        function addPrompt(savedPrompt = '', savedFolder = '') {
+            const container = document.getElementById('promptContainer');
+            const promptItem = document.createElement('div');
+            promptItem.className = 'prompt-item';
+            promptItem.innerHTML = `
+                <div class="prompt-controls">
+                    <div class="form-group" style="flex: 0 0 140px;">
+                        <label style="font-size: 11px; margin-bottom: 4px; color: var(--muted);">Folder Name</label>
+                        <input class="folder-input" type="text" placeholder="folder-name" value="${savedFolder}" style="font-size: 12px; padding: 6px; background: var(--input); border: 1px solid var(--border); border-radius: 6px; color: var(--text);">
+                    </div>
+                    <button class="btn btn-danger remove-btn" onclick="removePrompt(this)">Remove</button>
+                </div>
+                <textarea class="prompt-input" placeholder="Enter your prompts (one per line)">${savedPrompt}</textarea>
+            `;
+            container.appendChild(promptItem);
+            saveToLocalStorage();
+        }
+
+        function removePrompt(button) {
+            const promptItem = button.parentElement.parentElement; // Go up two levels: button -> prompt-controls -> prompt-item
+            promptItem.remove();
+            saveToLocalStorage();
+        }
+
+        function saveToLocalStorage() {
+            const authToken = document.getElementById('authToken').value;
+            const authFile = document.getElementById('authFile').value;
+            const outputDir = document.getElementById('outputDir').value;
+            const proxy = document.getElementById('proxy').value;
+            const imageCount = document.getElementById('imageCount').value;
+            const generationCount = document.getElementById('generationCount').value;
+            const aspectRatio = document.getElementById('aspectRatio').value;
+            const seed = document.getElementById('seed').value;
+            const seedLock = document.getElementById('seedLock').checked;
+            const model = document.getElementById('model').value;
+            const noFallback = false;
+            const promptItems = Array.from(document.querySelectorAll('.prompt-item'));
+            const promptsData = promptItems.map(item => ({
+                prompt: item.querySelector('.prompt-input').value,
+                folder: item.querySelector('.folder-input').value
+            }));
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('authFile', authFile);
+            localStorage.setItem('outputDir', outputDir);
+            localStorage.setItem('proxy', proxy);
+            localStorage.setItem('imageCount', imageCount);
+            localStorage.setItem('generationCount', generationCount);
+            localStorage.setItem('aspectRatio', aspectRatio);
+            localStorage.setItem('seed', seed);
+            localStorage.setItem('seedLock', seedLock ? 'true' : 'false');
+            localStorage.setItem('model', model);
+            localStorage.setItem('promptsData', JSON.stringify(promptsData));
+        }
+
+        // Event listeners moved to window load event
+
+        async function startGeneration() {
+            const authToken = document.getElementById('authToken').value;
+            const authFile = document.getElementById('authFile').value;
+            const generationCount = parseInt(document.getElementById('generationCount').value);
+            const imageCount = parseInt(document.getElementById('imageCount').value);
+            const aspectRatio = document.getElementById('aspectRatio').value;
+            const outputDir = document.getElementById('outputDir').value;
+            const proxy = document.getElementById('proxy').value;
+            const seedLock = document.getElementById('seedLock').checked;
+            const seedValue = document.getElementById('seed').value;
+            const model = document.getElementById('model').value;
+            const selected = Array.from(document.querySelectorAll('#chips .chip.active'))
+                .map((el) => el.getAttribute('data-text') || '')
+                .filter(Boolean)
+                .join('');
+            const promptItems = Array.from(document.querySelectorAll('.prompt-item'));
+            const promptsWithFolders = promptItems.flatMap(item => {
+                const promptText = item.querySelector('.prompt-input').value;
+                const folderName = item.querySelector('.folder-input').value.trim(); // Remove default, just trim
+                return promptText.split('\n')
+                    .map(prompt => prompt.trim())
+                    .filter(prompt => prompt !== '')
+                    .map(prompt => ({
+                        text: prompt + selected,
+                        folder: folderName // This will be empty string if no folder name
+                    }));
+            });
+            const prompts = promptsWithFolders.map(p => p.text);
+            if ((!authToken && !authFile) || !generationCount || !outputDir || promptsWithFolders.length === 0) {
+                alert('Please fill in all required fields and add at least one prompt');
+                return;
+            }
+            if (imageCount < 1 || imageCount > 8) {
+                alert('Image count must be between 1 and 8');
+                return;
+            }
+            const status = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+            const progressBar = document.getElementById('progressBar');
+            const runStatus = document.getElementById('runStatus');
+            status.classList.add('active');
+            statusText.textContent = 'Starting generation...';
+            progressBar.style.width = '0%';
+            const startBtn = document.getElementById('startBtn');
+            const prevText = startBtn.textContent;
+            startBtn.disabled = true;
+            startBtn.textContent = 'Stop (running)';
+            startBtn.classList.add('active');
+            runStatus.classList.remove('badge-inactive');
+            runStatus.classList.add('badge-active');
+            runStatus.textContent = 'Active';
+            try {
+                for (let i = 0; i < promptsWithFolders.length; i++) {
+                    const promptData = promptsWithFolders[i];
+                    statusText.textContent = `Processing prompt ${i + 1} of ${promptsWithFolders.length}: "${promptData.text}"`;
+                    const response = await fetch(`${API_BASE}/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            prompt: promptData.text,
+                            folderName: promptData.folder,
+                            authToken,
+                            authFile,
+                            generationCount,
+                            imageCount,
+                            aspectRatio,
+                            outputDir,
+                            proxy: proxy || undefined,
+                            seed: seedLock && seedValue ? Number(seedValue) : null,
+                            model,
+                            // noFallback removed
+                        })
+                    });
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        const lines = decoder.decode(value).split('\n').filter(line => line.trim());
+                        for (const line of lines) {
+                            try {
+                                const data = JSON.parse(line);
+                                switch (data.type) {
+                                    case 'progress':
+                                        statusText.textContent = data.data;
+                                        break;
+                                    case 'error':
+                                        throw new Error(data.data);
+                                    case 'complete':
+                                        const progress = ((i + 1) / promptsWithFolders.length) * 100;
+                                        progressBar.style.width = `${progress}%`;
+                                        break;
+                                }
+                            } catch (_) { }
+                        }
+                    }
+                }
+                statusText.textContent = 'All generations completed successfully!';
+            } catch (error) {
+                statusText.textContent = `Error: ${error.message}`;
+            } finally {
+                startBtn.disabled = false;
+                startBtn.textContent = prevText;
+                startBtn.classList.remove('active');
+                runStatus.classList.remove('badge-active');
+                runStatus.classList.add('badge-inactive');
+                runStatus.textContent = 'Idle';
+            }
+        }
+
+        // Preview removed
+
+        async function openOutputFolder() {
+            const outputDir = document.getElementById('outputDir').value;
+            if (!outputDir) { alert('Please set an output directory first.'); return; }
+            try {
+                const resp = await fetch(`${API_BASE}/open-folder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: outputDir }) });
+                const ct = resp.headers.get('content-type') || '';
+                if (!ct.includes('application/json')) {
+                    const text = await resp.text();
+                    alert(`Open folder failed. Is the UI server running? Details: ${text.slice(0, 200)}...`);
+                    return;
+                }
+                const data = await resp.json();
+                if (data?.error) alert(`Failed to open folder: ${data.error}`);
+            } catch (e) {
+                alert('Failed to open folder.');
+            }
+        }
+
+        let scanInterval = null;
+        async function scanOutputFolder() {
+            try {
+                const outputDir = document.getElementById('outputDir').value;
+                if (!outputDir) { alert('Please set an output directory first.'); return; }
+                const container = document.getElementById('folderGrid');
+                const countEl = document.getElementById('folderCount');
+                const box = document.getElementById('folderStatus');
+                container.innerHTML = '';
+                countEl.textContent = 'Scanning...';
+                box.style.display = 'block';
+                
+                console.log('Scanning folder:', outputDir);
+                const resp = await fetch(`${API_BASE}/list-images`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: outputDir, limit: 24 }) });
+                console.log('Response status:', resp.status, resp.statusText);
+                const ct = resp.headers.get('content-type') || '';
+                if (!ct.includes('application/json')) {
+                    const text = await resp.text();
+                    countEl.textContent = `Unable to scan. Server returned non-JSON response.`;
+                    console.error('Scan Folder non-JSON response:', text);
+                    return;
+                }
+                const data = await resp.json();
+                if (data?.error) { countEl.textContent = `Error: ${data.error}`; return; }
+                countEl.textContent = `Found ${data.count} image(s)`;
+                for (const item of data.items) {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.style.padding = '8px';
+                    let caption = item.name;
+                    if (item.meta && (item.meta.seed || item.meta.prompt)) {
+                        const promptTxt = String(item.meta.prompt || '');
+                        const promptShort = promptTxt ? (promptTxt.length > 50 ? promptTxt.slice(0, 50) + '…' : promptTxt) : '';
+                        caption = `${item.meta.seed ? 'Seed: ' + item.meta.seed + ' • ' : ''}${promptShort}`;
+                    }
+                    const img = document.createElement('img');
+                    img.alt = item.name;
+                    img.style.cssText = 'width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;';
+                    // skeleton while loading
+                    const sk = document.createElement('div');
+                    sk.className = 'skeleton';
+                    sk.style.height = '120px';
+                    card.appendChild(sk);
+                    const onload = () => { 
+                        if (card.contains(sk)) {
+                            card.replaceChild(img, sk); 
+                        }
+                        // Add click handler safely after image is loaded
+                        img.onclick = () => showDetail(item);
+                    };
+                    img.onload = onload; 
+                    img.onerror = onload; 
+                    img.src = item.dataUrl;
+                    const cap = document.createElement('div');
+                    cap.className = 'input-help';
+                    cap.style.marginTop = '6px';
+                    cap.textContent = caption;
+                    card.appendChild(cap);
+                    container.appendChild(card);
+                }
+                // if an interval is not set, start real-time refresh
+                if (!scanInterval) {
+                    scanInterval = setInterval(() => {
+                        // Only refresh if the folder box is visible and an outputDir is still set
+                        if (document.getElementById('folderStatus').style.display !== 'none' && document.getElementById('outputDir').value) {
+                            // re-run scan without resetting visibility
+                            (async () => {
+                                try {
+                                    const resp2 = await fetch(`${API_BASE}/list-images`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: document.getElementById('outputDir').value, limit: 24 }) });
+                                    const data2 = await resp2.json();
+                                    if (!data2 || data2.error) return;
+                                    container.innerHTML = '';
+                                    countEl.textContent = `Found ${data2.count} image(s)`;
+                                    for (const item2 of data2.items) {
+                                        const card2 = document.createElement('div');
+                                        card2.className = 'card';
+                                        card2.style.padding = '8px';
+                                        let cap2 = item2.name;
+                                        if (item2.meta && (item2.meta.seed || item2.meta.prompt)) {
+                                            const p2 = String(item2.meta.prompt || '');
+                                            const p2s = p2 ? (p2.length > 50 ? p2.slice(0, 50) + '…' : p2) : '';
+                                            cap2 = `${item2.meta.seed ? 'Seed: ' + item2.meta.seed + ' • ' : ''}${p2s}`;
+                                        }
+                                        card2.innerHTML = `<img src="${item2.dataUrl}" alt="${item2.name}" style="width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;"/><div class="input-help" style="margin-top:6px;">${cap2}</div>`;
+                                        const img2 = card2.querySelector('img');
+                                        if (img2) {
+                                            img2.onclick = () => showDetail(item2);
+                                        }
+                                        container.appendChild(card2);
+                                    }
+                                } catch {}
+                            })();
+                        }
+                    }, 3000);
+                }
+            } catch (e) {
+                countEl.textContent = `Unable to scan folder: ${e.message || e}`;
+                console.error('Scan Folder error:', e);
+            }
+        }
+
+        // Quick self-check helper (use in DevTools if needed)
+        async function checkServer() {
+            try {
+                const r = await fetch(`${API_BASE}/health`);
+                return await r.json();
+            } catch { return null; }
+        }
+
+        // Detail modal controls
+        function showDetail(item) {
+            const modal = document.getElementById('detailModal');
+            const img = document.getElementById('detailImg');
+            const m = item.meta || {};
+            img.src = item.dataUrl;
+            document.getElementById('metaFile').textContent = item.name || '';
+            document.getElementById('metaSeed').textContent = (m.seed ?? '').toString();
+            document.getElementById('metaPrompt').textContent = (m.prompt ?? '').toString();
+            document.getElementById('metaSaved').textContent = (m.savedAt ?? '').toString();
+            document.getElementById('metaModel').textContent = (m.model ?? '').toString();
+            document.getElementById('metaAspect').textContent = (m.aspectRatio ?? '').toString();
+            document.getElementById('metaGen').textContent = (m.generationNumber ?? '').toString();
+            document.getElementById('metaImgNum').textContent = (m.imageNumber ?? '').toString();
+            document.getElementById('metaMedia').textContent = (m.mediaGenerationId ?? '').toString();
+            modal.classList.add('active');
+        }
+        function closeDetail() {
+            document.getElementById('detailModal').classList.remove('active');
+        }
+
+        function toggleAuthTokenVisibility() {
+            const authTokenInput = document.getElementById('authToken');
+            const toggleButton = document.querySelector('.toggle-visibility');
+            if (authTokenInput.type === 'password') {
+                authTokenInput.type = 'text';
+                toggleButton.textContent = 'Hide';
+            } else {
+                authTokenInput.type = 'password';
+                toggleButton.textContent = 'Show';
+            }
+        }
+
+        // Context menu event listeners moved to window load event
+        async function pasteAuthToken() {
+            try {
+                const text = await navigator.clipboard.readText();
+                document.getElementById('authToken').value = text;
+                saveToLocalStorage();
+                document.getElementById('contextMenu').style.display = 'none';
+            } catch (_) {
+                alert('Failed to read from clipboard. Please allow clipboard access.');
+            }
+        }
+
+        // Token helper functions
+        function openTokenModal() {
+            document.getElementById('tokenModal').classList.add('active');
+        }
+        function closeTokenModal() {
+            document.getElementById('tokenModal').classList.remove('active');
+        }
+        function openImageFX() {
+            window.open('https://labs.google/fx/tools/image-fx', '_blank', 'noopener');
+        }
+        async function copyExtractor() {
+            const code = document.getElementById('extractorCode').textContent;
+            try {
+                await navigator.clipboard.writeText(code);
+                alert('Extractor copied. Paste it into the browser console on ImageFX.');
+            } catch (_) {
+                alert('Failed to copy. Select and copy the code manually.');
+            }
+        }
+        async function pasteTokenFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text && text.length > 20) {
+                    authTokenInput.value = text.trim();
+                    saveToLocalStorage();
+                    closeTokenModal();
+                } else {
+                    alert('Clipboard does not contain a valid token.');
+                }
+            } catch (_) {
+                alert('Clipboard access denied. Please paste via right-click on the token field.');
+            }
+        }
+    </script>
+</body>
+</html> 
