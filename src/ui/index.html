@@ -436,10 +436,10 @@
                         <div class="form-group">
                             <label for="authToken">Auth Token</label>
                             <div class="input-with-button">
-                                <input type="password" id="authToken" placeholder="Right-click to paste auth token" readonly>
+                                <input type="password" id="authToken" placeholder="Paste your auth token here">
                                 <button type="button" class="btn toggle-visibility" onclick="toggleAuthTokenVisibility()">Show</button>
                             </div>
-                            <div class="input-help">Right-click the field to paste from clipboard, or provide an auth file path below.</div>
+                            <div class="input-help">Paste your auth token here, or provide an auth file path below.</div>
                         </div>
                         <div class="row" style="margin-top:8px; gap:8px; flex-wrap: wrap;">
                             <button type="button" class="btn btn-purple" onclick="openTokenModal()">Auto Get Token</button>
@@ -626,7 +626,7 @@
                 optionsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
             });
 
-            // Context menu for auth token
+            // Context menu for auth token (optional right-click paste)
             const contextMenu = document.getElementById('contextMenu');
             const authTokenInput = document.getElementById('authToken');
             authTokenInput.addEventListener('contextmenu', function(e) {
@@ -640,8 +640,7 @@
                     contextMenu.style.display = 'none';
                 }
             });
-            authTokenInput.addEventListener('keydown', function(e) { e.preventDefault(); });
-            authTokenInput.addEventListener('paste', function(e) { e.preventDefault(); });
+            // Auth token input now allows normal typing and pasting
 
             // Theme toggle
             document.getElementById('themeToggle').addEventListener('click', function() {
