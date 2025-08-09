@@ -48,18 +48,6 @@ const aspectRatioMap: Record<string, 'IMAGE_ASPECT_RATIO_LANDSCAPE' | 'IMAGE_ASP
     'mobile_landscape': 'IMAGE_ASPECT_RATIO_LANDSCAPE'
 };
 
-// Handle mobile and cross-platform paths
-function normalizePath(outputPath: string): string {
-    // If it's a mobile-style path, convert to relative path for server storage
-    if (outputPath.includes('/var/mobile/') || outputPath.includes('/sdcard/')) {
-        // For mobile devices, save to a local downloads folder
-        return path.join(process.cwd(), 'downloads', 'imagefx');
-    }
-    
-    // For other platforms, use the path as-is but ensure it's normalized
-    return path.resolve(outputPath);
-}
-
 // Ensure/update a single gallery.html file in the output directory with aggregated metadata
 function upsertGallery(outputDir: string, newEntries: any[]) {
     const galleryPath = path.join(outputDir, 'gallery.html');
@@ -172,7 +160,7 @@ app.post('/preview', async (req: Request<{}, {}, { path: string }>, res: Respons
 app.post('/open-folder', async (req: Request<{}, {}, { path: string }>, res: Response) => {
     console.log('[POST] /open-folder', { path: req.body?.path });
     try {
-        const targetPath = normalizePath(req.body?.path || '');
+        const targetPath = req.body?.path;
         if (!targetPath) throw new Error('Path is required');
         const fs = await import('fs');
         if (!fs.existsSync(targetPath)) throw new Error('Path does not exist');
@@ -291,11 +279,10 @@ app.post('/generate', async (req: Request<{}, {}, GenerateRequest>, res: Respons
             const { saveImage, saveFile } = await import('../utils/filemanager');
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             
-            // Create folder-specific output directory with mobile-friendly path handling
-            const normalizedOutputDir = normalizePath(outputDir);
+            // Create folder-specific output directory
             const finalOutputDir = folderName && folderName.trim() !== '' 
-                ? path.join(normalizedOutputDir, folderName.trim()) 
-                : normalizedOutputDir;
+                ? path.join(outputDir, folderName.trim()) 
+                : outputDir;
 
             let imageNumber = 1;
             for (const panel of response.imagePanels) {
@@ -342,39 +329,14 @@ app.post('/generate', async (req: Request<{}, {}, GenerateRequest>, res: Respons
 
 // Health endpoint to verify routes are loaded
 app.get('/health', (_req: Request, res: Response) => {
-    res.json({ ok: true, routes: ['preview', 'open-folder', 'list-images', 'generate', 'download'] });
-});
-
-// Download individual image file (mobile-friendly)
-app.get('/download/:filename', (req: Request, res: Response) => {
-    try {
-        const filename = req.params.filename;
-        const outputDir = req.query.path as string || './downloads/imagefx';
-        const normalizedDir = normalizePath(outputDir);
-        const filePath = path.join(normalizedDir, filename);
-        
-        if (!fsSync.existsSync(filePath)) {
-            return res.status(404).json({ error: 'File not found' });
-        }
-        
-        // Set appropriate headers for download
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Type', 'image/png');
-        
-        // Stream the file
-        const fileStream = fsSync.createReadStream(filePath);
-        fileStream.pipe(res);
-    } catch (error: any) {
-        console.error('[GET] /download error:', error);
-        res.status(500).json({ error: error.message || 'Download failed' });
-    }
+    res.json({ ok: true, routes: ['preview', 'open-folder', 'list-images', 'generate'] });
 });
 
 // List images in a given directory with optional limit; returns count and thumbnails
 app.post('/list-images', async (req: Request<{}, {}, { path: string; limit?: number }>, res: Response) => {
     console.log('[POST] /list-images', { path: req.body?.path, limit: req.body?.limit });
     try {
-        const targetPath = normalizePath(req.body?.path || '');
+        const targetPath = req.body?.path;
         const limit = Math.max(1, Math.min(50, Number(req.body?.limit ?? 24)));
         if (!targetPath) throw new Error('Path is required');
         if (!fsSync.existsSync(targetPath)) throw new Error('Path does not exist');
