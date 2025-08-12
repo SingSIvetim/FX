@@ -340,142 +340,134 @@ const generateImage = async (params) => {
         authLength: authorization?.length
     });
 
-    // Use Google Generative AI API for image generation
-    let requestBody;
-    let apiUrl;
+    // Check if this is an API key (starts with AIza) or access token
+    const isApiKey = authorization.startsWith('AIza');
     
-    if (authorization.startsWith('AIza')) {
-        // API key - use Google Generative AI API
-        apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-4:generateContent';
-        requestBody = {
-            contents: [{
-                parts: [{
-                    text: prompt
-                }]
-            }],
-            generationConfig: {
-                temperature: 0.4,
-                topK: 32,
-                topP: 1,
-                maxOutputTokens: 2048,
-            }
-        };
-    } else {
-        // OAuth token - try multiple endpoints and formats
-        console.log('[DEBUG] Using OAuth token, trying multiple API endpoints...');
+    return new Promise((resolve, reject) => {
+        console.log(`[DEBUG] Making request with ${isApiKey ? 'API Key' : 'Access Token'}`);
+        console.log(`[DEBUG] Authorization: ${isApiKey ? `Bearer ${authorization.substring(0, 20)}...` : authorization.substring(0, 20) + '...'}`);
+        console.log(`[DEBUG] Tool: ${tool}, Model: ${modelNameType}`);
         
-        // Try Google Generative AI API first with OAuth
-        apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3:generateContent';
-        requestBody = {
-            contents: [{
-                parts: [{
-                    text: prompt
-                }]
-            }],
-            generationConfig: {
-                temperature: 0.4,
-                topK: 32,
-                topP: 1,
-                maxOutputTokens: 2048,
-            }
-        };
-        
-        // If this fails, we'll try the original ImageFX API as fallback
-        console.log('[DEBUG] Will try ImageFX API as fallback if this fails');
-    }
+        if (isApiKey) {
+            // Use Google's Generative AI Images API for API keys
+            const modelPath = modelNameType === 'IMAGEN_4_0'
+                ? 'models/imagen-4.0-generate-preview-06-06'
+                : 'models/imagen-3.0-generate-002';
 
-    console.log('[DEBUG] Using API URL:', apiUrl);
-    console.log('[DEBUG] Request body:', JSON.stringify(requestBody, null, 2));
+            const body = {
+                prompt: { text: prompt },
+                imageGenerationConfig: { numberOfImages: imageCount },
+            };
 
-    try {
-        const response = await makeRequest({
-            reqURL: apiUrl,
-            authorization,
-            method: 'POST',
-            body: JSON.stringify(requestBody)
-        });
-
-        console.log('[DEBUG] API Response received:', {
-            hasResponse: !!response,
-            responseType: typeof response,
-            hasImagePanels: !!(response && response.imagePanels),
-            imagePanelsCount: response?.imagePanels?.length || 0,
-            error: response?.error || null
-        });
-
-        if (response && response.error) {
-            console.error('[DEBUG] API Error:', response.error);
-            
-            // If it's an authentication error and we're using OAuth, try ImageFX API as fallback
-            if (response.error.code === 401 && !authorization.startsWith('AIza')) {
-                console.log('[DEBUG] Authentication failed, trying ImageFX API as fallback...');
+            const doPost = async (url, payload) => {
+                console.log(`[DEBUG] POST ${url}`);
+                console.log(`[DEBUG] Body:`, JSON.stringify(payload, null, 2));
                 
+                const response = await makeRequest({
+                    reqURL: url,
+                    authorization,
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                
+                console.log(`[DEBUG] Response:`, JSON.stringify(response, null, 2));
+                if (response.error) throw response;
+                return response;
+            };
+
+            (async () => {
                 try {
-                    const imageFxResponse = await makeRequest({
-                        reqURL: 'https://aisandbox-pa.googleapis.com/v1:runImageFx',
-                        authorization,
-                        method: 'POST',
-                        body: JSON.stringify({
-                            prompt: prompt,
-                            imageCount: imageCount,
-                            aspectRatio: aspectRatio,
-                            modelNameType: modelNameType,
-                            tool: tool,
-                            ...(seed !== null && { seed: seed })
-                        })
-                    });
-                    
-                    console.log('[DEBUG] ImageFX API response:', {
-                        hasResponse: !!imageFxResponse,
-                        hasError: !!(imageFxResponse && imageFxResponse.error),
-                        hasImagePanels: !!(imageFxResponse && imageFxResponse.imagePanels)
-                    });
-                    
-                    if (imageFxResponse && !imageFxResponse.error && imageFxResponse.imagePanels) {
-                        console.log('[DEBUG] ImageFX API fallback successful');
-                        return imageFxResponse;
-                    } else if (imageFxResponse && imageFxResponse.error) {
-                        console.error('[DEBUG] ImageFX API also failed:', imageFxResponse.error);
-                        throw new Error(`Both APIs failed. Google AI: ${response.error.message}. ImageFX: ${imageFxResponse.error.message}`);
+                    // 1) models/{model}:generateImages
+                    const url1 = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:generateImages`;
+                    const data1 = await doPost(url1, body);
+                    const images1 = (data1.images || data1.generatedImages || []);
+                    if (images1.length > 0) {
+                        const converted = {
+                            imagePanels: [{
+                                prompt,
+                                generatedImages: images1.map((img, index) => ({
+                                    encodedImage: img?.image?.imageBytes || img?.image?.image_bytes || img?.inlineData?.data || '',
+                                    seed: seed || Math.floor(Math.random() * 1000000),
+                                    mediaGenerationId: `genai-${Date.now()}-${index}`,
+                                    isMaskEditedImage: false,
+                                    modelNameType: modelNameType,
+                                    workflowId: 'generative-ai-images',
+                                    fingerprintLogRecordId: 'genai-images',
+                                })),
+                            }],
+                        };
+                        resolve(converted);
+                        return;
                     }
-                } catch (fallbackError) {
-                    console.error('[DEBUG] ImageFX API fallback also failed:', fallbackError);
-                    throw new Error(`Both APIs failed. Google AI: ${response.error.message}. ImageFX: ${fallbackError.message}`);
+                    console.log('[DEBUG] No images in generateImages; trying images:generate ...');
+                    // 2) images:generate
+                    const url2 = `https://generativelanguage.googleapis.com/v1beta/images:generate`;
+                    const data2 = await doPost(url2, { ...body, model: modelPath });
+                    const images2 = (data2.images || data2.generatedImages || []);
+                    if (images2.length === 0) throw { error: { code: 500, message: 'Images API returned no images', status: 'NO_IMAGES' } };
+                    const converted2 = {
+                        imagePanels: [{
+                            prompt,
+                            generatedImages: images2.map((img, index) => ({
+                                encodedImage: img?.image?.imageBytes || img?.image?.image_bytes || img?.inlineData?.data || '',
+                                seed: seed || Math.floor(Math.random() * 1000000),
+                                mediaGenerationId: `genai-${Date.now()}-${index}`,
+                                isMaskEditedImage: false,
+                                modelNameType: modelNameType,
+                                workflowId: 'generative-ai-images',
+                                fingerprintLogRecordId: 'genai-images',
+                            })),
+                        }],
+                    };
+                    resolve(converted2);
+                } catch (err) {
+                    console.log('[DEBUG] Images API attempts failed:', err);
+                    reject(err);
                 }
-            }
-            
-            throw new Error(`API Error: ${response.error.message || response.error}`);
-        }
+            })();
+        } else {
+            // Use ImageFX API for access tokens - CORRECT FORMAT
+            const requestBody = {
+                userInput: {
+                    candidatesCount: imageCount,
+                    prompts: [prompt],
+                    seed: seed,
+                },
+                clientContext: {
+                    sessionId: ";1740656431200",
+                    tool: tool,
+                },
+                modelInput: {
+                    modelNameType: modelNameType,
+                },
+                aspectRatio: aspectRatio,
+            };
 
-        // Handle different response formats
-        if (response && response.candidates && response.candidates[0] && response.candidates[0].content) {
-            // Google Generative AI format
-            const parts = response.candidates[0].content.parts;
-            const images = parts.filter(part => part.inlineData && part.inlineData.mimeType.startsWith('image/'));
-            
-            if (images.length > 0) {
-                // Convert to our expected format
-                return {
-                    imagePanels: [{
-                        generatedImages: images.map(img => ({
-                            encodedImage: img.inlineData.data,
-                            mediaGenerationId: null
-                        }))
-                    }]
-                };
-            }
-        }
+            console.log('[DEBUG] Using ImageFX API with OAuth token');
+            console.log('[DEBUG] Request body:', JSON.stringify(requestBody, null, 2));
 
-        if (!response || !response.imagePanels) {
-            console.error('[DEBUG] Invalid response structure:', response);
-            throw new Error('Invalid response from API - no image panels');
+            makeRequest({
+                reqURL: "https://aisandbox-pa.googleapis.com/v1:runImageFx",
+                authorization,
+                method: "POST",
+                body: JSON.stringify(requestBody)
+            })
+            .then((response) => {
+                console.log(`[DEBUG] ImageFX Response received:`, JSON.stringify(response, null, 2));
+                if (response.error) {
+                    console.log(`[DEBUG] Error in response:`, response.error);
+                    reject(response);
+                } else {
+                    console.log(`[DEBUG] ImageFX Success response`);
+                    resolve(response);
+                }
+            })
+            .catch((error) => {
+                console.log(`[DEBUG] ImageFX Request failed:`, error);
+                reject(error);
+            });
         }
-
-        return response;
-    } catch (error) {
-        console.error('[DEBUG] generateImage error:', error);
-        throw error;
-    }
+    });
 };
 
 // Generate endpoint with real functionality
