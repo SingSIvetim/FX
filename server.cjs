@@ -144,26 +144,35 @@ app.get('/download-gallery', (req, res) => {
     }
 });
 
-// Railway gallery data endpoint (JSON)
+// Railway gallery data endpoint
 app.get('/railway-gallery-data', (req, res) => {
     console.log('📊 Railway gallery data requested');
     try {
         const tempDir = path.join(process.cwd(), 'temp_images');
         const galleryPath = path.join(tempDir, 'gallery.html');
         
+        console.log('[DEBUG] Looking for gallery at:', galleryPath);
+        console.log('[DEBUG] Gallery exists:', fs.existsSync(galleryPath));
+        
         if (!fs.existsSync(galleryPath)) {
+            console.log('[DEBUG] No gallery file found, returning empty array');
             return res.json([]);
         }
         
         // Read gallery data
         const content = fs.readFileSync(galleryPath, 'utf-8');
+        console.log('[DEBUG] Gallery file size:', content.length);
+        
         const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
         
         if (!match) {
+            console.log('[DEBUG] No gallery data script tag found');
             return res.json([]);
         }
         
         const data = JSON.parse(match[1]);
+        console.log('[DEBUG] Found', data.length, 'images in gallery data');
+        
         res.json(data);
         
     } catch (error) {
@@ -958,13 +967,21 @@ app.post('/generate', async (req, res) => {
                     
                     data = [...data, ...newEntries];
                     
+                    console.log('[DEBUG] Total images in gallery:', data.length);
+                    console.log('[DEBUG] New entries added:', newEntries.length);
+                    
                     // Read the template file
                     const templatePath = path.join(process.cwd(), 'railway-gallery-template.html');
                     let html = '';
                     
                     if (fs.existsSync(templatePath)) {
                         html = fs.readFileSync(templatePath, 'utf-8');
+                        // Replace the empty gallery data with actual data
+                        html = html.replace('<script id="gallery-data" type="application/json">[]</script>', 
+                                           `<script id="gallery-data" type="application/json">${JSON.stringify(data)}</script>`);
+                        console.log('[DEBUG] Template loaded and data injected');
                     } else {
+                        console.log('[DEBUG] Template file not found, using fallback');
                         // Fallback to inline template if file doesn't exist
                         html = `<!DOCTYPE html>
 <html lang="en">
@@ -1273,7 +1290,7 @@ app.post('/generate', async (req, res) => {
         
         function displayImages(images) {
             const grid = document.getElementById('galleryGrid');
-            grid.innerHTML = ''; // Clear previous images
+            grid.innerHTML = '';
             
             images.forEach((image, index) => {
                 const item = document.createElement('div');
