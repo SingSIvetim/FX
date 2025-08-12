@@ -489,7 +489,7 @@
                     <li>Open ImageFX in a new tab and sign in.</li>
                     <li>Press F12 to open DevTools, switch to the Console tab.</li>
                     <li>Paste the script below and press Enter, then copy the token shown.</li>
-                    <li>Come back here and click “Paste from Clipboard”.</li>
+                    <li>Come back here and click "Paste from Clipboard".</li>
                 </ol>
                 <pre class="code" id="extractorCode"></pre>
                 <div class="modal-actions">
@@ -498,7 +498,7 @@
                     <button class="btn btn-main" onclick="pasteTokenFromClipboard()">Paste from Clipboard</button>
                     <button class="btn" onclick="closeTokenModal()">Close</button>
                 </div>
-                <div class="modal-footer">We cannot access other sites’ content directly due to browser security. Use the helper to grab the token safely.</div>
+                <div class="modal-footer">We cannot access other sites' content directly due to browser security. Use the helper to grab the token safely.</div>
             </div>
         </div>
         <!-- Image Detail Modal -->
@@ -869,6 +869,7 @@
                             proxy: proxy || undefined,
                             seed: seedLock && seedValue ? Number(seedValue) : null,
                             model,
+                            profileName: document.getElementById('profileName')?.value || null, // Add profile name
                             // noFallback removed
                         })
                     });
@@ -1274,9 +1275,13 @@
                 
                 if (resp.ok) {
                     const data = await resp.json();
+                    if (data.length === 0) {
+                        alert(`No photos found for profile "${profileName}". Make sure you have generated images with this profile name.`);
+                        return;
+                    }
                     displayPhotos(data, `Photos for profile: ${profileName}`);
                 } else {
-                    alert('No photos found for this profile.');
+                    alert('Error loading profile photos.');
                 }
             } catch (error) {
                 console.error('View profile photos error:', error);

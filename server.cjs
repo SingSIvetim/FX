@@ -67,13 +67,21 @@ app.post('/profile-photos', (req, res) => {
         
         const data = JSON.parse(match[1]);
         
-        // Filter by profile name (for now, we'll use a simple approach)
-        // In a real implementation, you'd store profile info with each image
+        // Filter by profile name - only show photos that match the requested profile
         const profilePhotos = data.filter(item => {
-            // For now, we'll show all photos since we don't have profile storage yet
-            // This can be enhanced later with proper profile-based filtering
-            return true;
+            // Check if the image was generated with this profile name
+            // We'll use the fileName or metadata to determine the profile
+            if (item.profileName) {
+                return item.profileName.toLowerCase() === profileName.toLowerCase();
+            }
+            
+            // Fallback: check if the fileName contains the profile name
+            // This assumes the fileName format includes the profile name
+            const fileName = item.fileName || '';
+            return fileName.toLowerCase().includes(profileName.toLowerCase());
         });
+        
+        console.log(`[DEBUG] Profile "${profileName}" requested, found ${profilePhotos.length} photos out of ${data.length} total`);
         
         res.json(profilePhotos);
         
@@ -719,7 +727,7 @@ const generateImage = async (params) => {
 // Generate endpoint with real functionality
 app.post('/generate', async (req, res) => {
     console.log('🖼️ Generate requested');
-    const { prompt, folderName, authToken, authFile, generationCount, imageCount, aspectRatio, outputDir, proxy, seed, model, noFallback } = req.body;
+    const { prompt, folderName, authToken, authFile, generationCount, imageCount, aspectRatio, outputDir, proxy, seed, model, noFallback, profileName } = req.body;
     
     // Check if we're on Railway (ephemeral file system)
     const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
@@ -873,7 +881,8 @@ app.post('/generate', async (req, res) => {
                                         model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)',
                                         downloadUrl: downloadUrl,
                                         encodedImage: image.encodedImage, // Include the image data for gallery display
-                                        isRailway: true
+                                        isRailway: true,
+                                        profileName: profileName || 'default' // Add profile name to metadata
                                     };
                                     newEntries.push(meta);
                                     
@@ -896,7 +905,8 @@ app.post('/generate', async (req, res) => {
                                         savedAt: new Date().toISOString(),
                                         mediaGenerationId: image.mediaGenerationId || null,
                                         model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)',
-                                        isRailway: false
+                                        isRailway: false,
+                                        profileName: profileName || 'default' // Add profile name to local metadata
                                     };
                                     newEntries.push(meta);
                                     
