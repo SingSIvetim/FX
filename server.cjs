@@ -753,11 +753,14 @@ app.post('/generate', async (req, res) => {
                 console.log(`[SERVER] Attempting generation with model ${selectedModel} and tool ${selectedTool}`);
                 res.write(JSON.stringify({ type: 'progress', data: `Using model: ${selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)'}` }) + '\n');
                 
+                // Generate unique seed for each image if not provided
+                const imageSeed = typeof seed === 'number' ? seed : Math.floor(Math.random() * 1000000);
+                
                 response = await generateImage({
                     prompt,
                     authorization: finalAuthToken,
                     imageCount: imageCount,
-                    seed: typeof seed === 'number' ? seed : null,
+                    seed: imageSeed,
                     aspectRatio: aspectRatioMap[aspectRatio],
                     modelNameType: selectedModel,
                     tool: selectedTool,
@@ -778,11 +781,14 @@ app.post('/generate', async (req, res) => {
                     res.write(JSON.stringify({ type: 'progress', data: 'Falling back to Imagen 3 (quality)...' }) + '\n');
                     
                     try {
+                        // Generate unique seed for fallback attempt
+                        const fallbackSeed = typeof seed === 'number' ? seed : Math.floor(Math.random() * 1000000);
+                        
                         response = await generateImage({
                             prompt,
                             authorization: finalAuthToken,
                             imageCount: imageCount,
-                            seed: typeof seed === 'number' ? seed : null,
+                            seed: fallbackSeed,
                             aspectRatio: aspectRatioMap[aspectRatio],
                             modelNameType: selectedModel,
                             tool: selectedTool,
@@ -858,7 +864,7 @@ app.post('/generate', async (req, res) => {
                                     const meta = {
                                         fileName: imageName,
                                         prompt: prompt,
-                                        seed: seed,
+                                        seed: imageSeed, // Use the actual seed used for generation
                                         aspectRatio: aspectRatio,
                                         generationNumber: gen + 1,
                                         imageNumber: currentNum,
@@ -884,7 +890,7 @@ app.post('/generate', async (req, res) => {
                                     const meta = {
                                         fileName: imageName,
                                         prompt: prompt,
-                                        seed: seed,
+                                        seed: imageSeed, // Use the actual seed used for generation
                                         aspectRatio: aspectRatio,
                                         generationNumber: gen + 1,
                                         imageNumber: currentNum,
