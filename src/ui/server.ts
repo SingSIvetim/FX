@@ -335,7 +335,7 @@ app.post('/generate', async (req: Request<{}, {}, GenerateRequest>, res: Respons
 // Health endpoint to verify routes are loaded
 app.get('/health', (_req: Request, res: Response) => {
     console.log('🏥 Health check requested');
-    res.json({ 
+    res.status(200).json({ 
         ok: true, 
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
@@ -345,6 +345,12 @@ app.get('/health', (_req: Request, res: Response) => {
         port: process.env.PORT || 8080,
         host: process.env.HOST || '0.0.0.0'
     });
+});
+
+// Simple ping endpoint for Railway
+app.get('/ping', (_req: Request, res: Response) => {
+    console.log('🏓 Ping requested');
+    res.status(200).send('pong');
 });
 
 
