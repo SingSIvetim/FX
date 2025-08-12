@@ -41,6 +41,38 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Get available profiles endpoint
+app.get('/railway-profiles', (req, res) => {
+    console.log('👥 Railway profiles requested');
+    try {
+        const tempDir = path.join(process.cwd(), 'temp_images');
+        const galleryPath = path.join(tempDir, 'gallery.html');
+        
+        if (!fs.existsSync(galleryPath)) {
+            return res.json([]);
+        }
+        
+        // Read gallery data
+        const content = fs.readFileSync(galleryPath, 'utf-8');
+        const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
+        
+        if (!match) {
+            return res.json([]);
+        }
+        
+        const data = JSON.parse(match[1]);
+        
+        // Extract unique profile names
+        const profiles = [...new Set(data.map(item => item.profileName).filter(Boolean))];
+        
+        res.json(profiles);
+        
+    } catch (error) {
+        console.error('[DEBUG] Railway profiles error:', error);
+        res.json([]);
+    }
+});
+
 // Download gallery endpoint
 app.get('/download-gallery', (req, res) => {
     console.log('📄 Download gallery requested');
@@ -64,9 +96,43 @@ app.get('/download-gallery', (req, res) => {
     }
 });
 
-// Railway gallery data endpoint (JSON)
+// Railway gallery data endpoint (JSON) - with profile filtering
+app.get('/railway-gallery-data/:profileName?', (req, res) => {
+    console.log('📊 Railway gallery data requested for profile:', req.params.profileName || 'all');
+    try {
+        const tempDir = path.join(process.cwd(), 'temp_images');
+        const galleryPath = path.join(tempDir, 'gallery.html');
+        
+        if (!fs.existsSync(galleryPath)) {
+            return res.json([]);
+        }
+        
+        // Read gallery data
+        const content = fs.readFileSync(galleryPath, 'utf-8');
+        const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
+        
+        if (!match) {
+            return res.json([]);
+        }
+        
+        let data = JSON.parse(match[1]);
+        
+        // Filter by profile name if specified
+        if (req.params.profileName && req.params.profileName !== 'public') {
+            data = data.filter(item => item.profileName === req.params.profileName);
+        }
+        
+        res.json(data);
+        
+    } catch (error) {
+        console.error('[DEBUG] Railway gallery data error:', error);
+        res.json([]);
+    }
+});
+
+// Railway gallery data endpoint (JSON) - legacy endpoint for all photos
 app.get('/railway-gallery-data', (req, res) => {
-    console.log('📊 Railway gallery data requested');
+    console.log('📊 Railway gallery data requested (all photos)');
     try {
         const tempDir = path.join(process.cwd(), 'temp_images');
         const galleryPath = path.join(tempDir, 'gallery.html');
@@ -647,7 +713,7 @@ const generateImage = async (params) => {
 // Generate endpoint with real functionality
 app.post('/generate', async (req, res) => {
     console.log('🖼️ Generate requested');
-    const { prompt, folderName, authToken, authFile, generationCount, imageCount, aspectRatio, outputDir, proxy, seed, model, noFallback } = req.body;
+    const { prompt, folderName, authToken, authFile, generationCount, imageCount, aspectRatio, outputDir, proxy, seed, model, noFallback, profileName } = req.body;
     
     // Check if we're on Railway (ephemeral file system)
     const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
@@ -801,6 +867,7 @@ app.post('/generate', async (req, res) => {
                                         model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)',
                                         downloadUrl: downloadUrl,
                                         encodedImage: image.encodedImage, // Include the image data for gallery display
+                                        profileName: profileName || 'anonymous', // Add profile name
                                         isRailway: true
                                     };
                                     newEntries.push(meta);
@@ -857,7 +924,7 @@ app.post('/generate', async (req, res) => {
             // Update gallery.html with new entries
             if (newEntries.length > 0) {
                 if (isRailway) {
-                    // On Railway: Create temporary gallery
+                    // On Railway: Create profile-based gallery
                     const tempDir = path.join(process.cwd(), 'temp_images');
                     const galleryPath = path.join(tempDir, 'gallery.html');
                     let data = [];
@@ -876,6 +943,7 @@ app.post('/generate', async (req, res) => {
                     
                     data = [...data, ...newEntries];
                     
+                    // Create the gallery HTML (same as before)
                     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>

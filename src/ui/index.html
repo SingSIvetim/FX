@@ -425,6 +425,19 @@
                                 <input type="text" id="outputDir" placeholder="C:/output/folder">
                                 <div class="input-help">Images will be saved here. Use "Scan Folder" to view saved images.</div>
                             </div>
+                            <div class="form-group" id="profileNameGroup" style="display: none;">
+                                <label for="profileName">Profile Name</label>
+                                <input type="text" id="profileName" placeholder="Enter your profile name">
+                                <div class="input-help">Your photos will be saved under this profile name. Use "Public Photos" to view all photos.</div>
+                            </div>
+                            <div class="form-group" id="publicPhotosGroup" style="display: none;">
+                                <label for="publicPhotos">View Photos</label>
+                                <select id="publicPhotos">
+                                    <option value="">Select profile to view photos</option>
+                                    <option value="public">Public Photos (All)</option>
+                                </select>
+                                <div class="input-help">Select a profile to view their photos or choose "Public Photos" to see all.</div>
+                            </div>
                             <div class="form-group" style="grid-column: 1 / -1;">
                                 <label for="proxy">Proxy (optional)</label>
                                 <input type="text" id="proxy" placeholder="http://username:password@host:port">
@@ -551,6 +564,14 @@
             const outputDirGroup = document.getElementById('outputDirGroup');
             if (outputDirGroup) {
                 outputDirGroup.style.display = 'none';
+            }
+            const profileNameGroup = document.getElementById('profileNameGroup');
+            if (profileNameGroup) {
+                profileNameGroup.style.display = 'block';
+            }
+            const publicPhotosGroup = document.getElementById('publicPhotosGroup');
+            if (publicPhotosGroup) {
+                publicPhotosGroup.style.display = 'block';
             }
         }
 
@@ -847,6 +868,7 @@
                             proxy: proxy || undefined,
                             seed: seedLock && seedValue ? Number(seedValue) : null,
                             model,
+                            profileName: isRailway ? document.getElementById('profileName').value : undefined,
                             // noFallback removed
                         })
                     });
@@ -945,28 +967,34 @@
         let scanInterval = null;
         async function scanOutputFolder() {
             try {
-                const outputDir = document.getElementById('outputDir').value;
-                if (!outputDir) { 
-                    return; 
-                }
-                
-                // Check if we're on Railway
                 const isRailway = location.hostname.includes('railway.app');
                 
-                const container = document.getElementById('folderGrid');
-                const countEl = document.getElementById('folderCount');
-                const box = document.getElementById('folderStatus');
-                container.innerHTML = '';
-                countEl.textContent = 'Scanning...';
-                box.style.display = 'block';
-                
                 if (isRailway) {
-                    // On Railway: Get images from Railway gallery data
+                    // On Railway: Get profile name and public photos selection
+                    const profileName = document.getElementById('profileName').value;
+                    const publicPhotos = document.getElementById('publicPhotos').value;
+                    
+                    if (!profileName && !publicPhotos) {
+                        alert('Please enter a Profile Name or select a profile to view photos.');
+                        return;
+                    }
+                    
+                    const container = document.getElementById('folderGrid');
+                    const countEl = document.getElementById('folderCount');
+                    const box = document.getElementById('folderStatus');
+                    container.innerHTML = '';
+                    countEl.textContent = 'Loading photos...';
+                    box.style.display = 'block';
+                    
+                    // Get photos based on selection
+                    const endpoint = publicPhotos === 'public' ? '/railway-gallery-data' : `/railway-gallery-data/${encodeURIComponent(profileName)}`;
+                    
                     try {
-                        const resp = await fetch(`${API_BASE}/railway-gallery-data`);
+                        const resp = await fetch(`${API_BASE}${endpoint}`);
                         if (resp.ok) {
                             const data = await resp.json();
-                            countEl.textContent = `Found ${data.length} image(s) on Railway`;
+                            const displayName = publicPhotos === 'public' ? 'Public Photos' : profileName;
+                            countEl.textContent = `Found ${data.length} image(s) in ${displayName}`;
                             
                             if (data.length === 0) {
                                 container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found. Generate some images first!</div>';
@@ -1037,7 +1065,7 @@
                             container.appendChild(bulkCard);
                             
                         } else {
-                            countEl.textContent = 'No images found on Railway. Generate some images first!';
+                            countEl.textContent = 'No images found. Generate some images first!';
                             container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found. Generate some images first!</div>';
                         }
                     } catch (error) {
@@ -1046,6 +1074,12 @@
                         container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Error loading images from Railway.</div>';
                     }
                     return;
+                }
+                
+                // Local development logic (unchanged)
+                const outputDir = document.getElementById('outputDir').value;
+                if (!outputDir) { 
+                    return; 
                 }
                 
                 console.log('Scanning folder:', outputDir);
@@ -1235,6 +1269,38 @@
             }
         }
 
+        // Load available profiles for Railway
+        async function loadAvailableProfiles() {
+            const isRailway = location.hostname.includes('railway.app');
+            if (!isRailway) return;
+            
+            try {
+                const resp = await fetch(`${API_BASE}/railway-profiles`);
+                if (resp.ok) {
+                    const profiles = await resp.json();
+                    const select = document.getElementById('publicPhotos');
+                    
+                    // Clear existing options except the first two
+                    while (select.children.length > 2) {
+                        select.removeChild(select.lastChild);
+                    }
+                    
+                    // Add profile options
+                    profiles.forEach(profile => {
+                        const option = document.createElement('option');
+                        option.value = profile;
+                        option.textContent = profile;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load profiles:', error);
+            }
+        }
+
+        // Load profiles when page loads
+        document.addEventListener('DOMContentLoaded', loadAvailableProfiles);
+
         // Detail modal controls
         function showDetail(item) {
             const modal = document.getElementById('detailModal');
@@ -1267,8 +1333,19 @@
             modal.style.display = 'block';
         }
         function closeDetail() {
-            document.getElementById('detailModal').classList.remove('active');
+            const modal = document.getElementById('detailModal');
+            modal.style.display = 'none';
         }
+
+        // Add ESC key listener for modal
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('detailModal');
+                if (modal.style.display === 'block') {
+                    closeDetail();
+                }
+            }
+        });
 
         function toggleAuthTokenVisibility() {
             const authTokenInput = document.getElementById('authToken');
