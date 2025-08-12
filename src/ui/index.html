@@ -308,7 +308,6 @@
                         <button class="btn" type="button" onclick="addPrompt()">Add Prompt Box</button>
                         <!-- Preview removed as Scan Folder covers it -->
                         <button class="btn" type="button" onclick="openOutputFolder()">Open Folder</button>
-                        <button class="btn" type="button" onclick="scanOutputFolder()">Scan Folder</button>
                         <button class="btn" type="button" onclick="scanOutputFolder()" title="Refresh folder contents">🔄</button>
                     </div>
                 </header>
@@ -421,7 +420,7 @@
                                     <option value="mobile_landscape">Mobile Landscape (4:3)</option>
                                 </select>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group" id="outputDirGroup">
                                 <label for="outputDir">Output Directory</label>
                                 <input type="text" id="outputDir" placeholder="C:/output/folder">
                                 <div class="input-help">Images will be saved here. Use "Scan Folder" to view saved images.</div>
@@ -545,6 +544,15 @@
             else { setTheme('dark'); }
         })();
         // Theme toggle moved to window load event
+
+        // Hide Output Directory on Railway
+        const isRailway = location.hostname.includes('railway.app');
+        if (isRailway) {
+            const outputDirGroup = document.getElementById('outputDirGroup');
+            if (outputDirGroup) {
+                outputDirGroup.style.display = 'none';
+            }
+        }
 
         // Tabs behavior - REMOVED for side-by-side layout
         // All sections are now always visible
@@ -1023,6 +1031,7 @@
                                 <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
                                     <button class="btn" onclick="downloadAllRailwayImages()" style="background: var(--btn-green); color: var(--green);">Download All (${data.length})</button>
                                     <button class="btn" onclick="downloadRailwayZip()" style="background: var(--btn-purple); color: var(--purple);">Download ZIP</button>
+                                    <button class="btn" onclick="downloadRailwayGallery()" style="background: var(--btn-blue); color: white;">Download Gallery.html</button>
                                 </div>
                             `;
                             container.appendChild(bulkCard);
@@ -1206,22 +1215,56 @@
             }
         }
 
+        async function downloadRailwayGallery() {
+            try {
+                const resp = await fetch(`${API_BASE}/download-gallery`);
+                if (resp.ok) {
+                    const blob = await resp.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'gallery.html';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('Failed to download Gallery.html');
+                }
+            } catch (error) {
+                console.error('Download Gallery error:', error);
+            }
+        }
+
         // Detail modal controls
         function showDetail(item) {
             const modal = document.getElementById('detailModal');
             const img = document.getElementById('detailImg');
-            const m = item.meta || {};
-            img.src = item.dataUrl;
-            document.getElementById('metaFile').textContent = item.name || '';
-            document.getElementById('metaSeed').textContent = (m.seed ?? '').toString();
-            document.getElementById('metaPrompt').textContent = (m.prompt ?? '').toString();
-            document.getElementById('metaSaved').textContent = (m.savedAt ?? '').toString();
-            document.getElementById('metaModel').textContent = (m.model ?? '').toString();
-            document.getElementById('metaAspect').textContent = (m.aspectRatio ?? '').toString();
-            document.getElementById('metaGen').textContent = (m.generationNumber ?? '').toString();
-            document.getElementById('metaImgNum').textContent = (m.imageNumber ?? '').toString();
-            document.getElementById('metaMedia').textContent = (m.mediaGenerationId ?? '').toString();
-            modal.classList.add('active');
+            const title = document.getElementById('detailTitle');
+            
+            // Set image source
+            if (item.encodedImage) {
+                // For Railway images with base64 data
+                img.src = `data:image/png;base64,${item.encodedImage}`;
+            } else if (item.dataUrl) {
+                // For local images
+                img.src = item.dataUrl;
+            } else {
+                img.src = '';
+            }
+            
+            // Set metadata
+            document.getElementById('metaFile').textContent = item.fileName || item.name || 'Unknown';
+            document.getElementById('metaSeed').textContent = item.seed || 'Random';
+            document.getElementById('metaPrompt').textContent = item.prompt || 'No prompt';
+            document.getElementById('metaSaved').textContent = item.savedAt ? new Date(item.savedAt).toLocaleString() : 'Unknown';
+            document.getElementById('metaModel').textContent = item.model || 'Unknown';
+            document.getElementById('metaAspect').textContent = item.aspectRatio || 'Unknown';
+            document.getElementById('metaGen').textContent = item.generationNumber || 'Unknown';
+            document.getElementById('metaImgNum').textContent = item.imageNumber || 'Unknown';
+            document.getElementById('metaMedia').textContent = item.mediaGenerationId || 'Unknown';
+            
+            title.textContent = item.fileName || item.name || 'Image Details';
+            modal.style.display = 'block';
         }
         function closeDetail() {
             document.getElementById('detailModal').classList.remove('active');

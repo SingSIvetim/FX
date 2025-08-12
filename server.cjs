@@ -41,6 +41,29 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Download gallery endpoint
+app.get('/download-gallery', (req, res) => {
+    console.log('📄 Download gallery requested');
+    try {
+        const tempDir = path.join(process.cwd(), 'temp_images');
+        const galleryPath = path.join(tempDir, 'gallery.html');
+        
+        if (!fs.existsSync(galleryPath)) {
+            return res.status(404).json({ error: 'No gallery found. Generate some images first!' });
+        }
+        
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Disposition', 'attachment; filename="gallery.html"');
+        
+        const galleryContent = fs.readFileSync(galleryPath, 'utf-8');
+        res.send(galleryContent);
+        
+    } catch (error) {
+        console.error('[DEBUG] Download gallery error:', error);
+        res.status(500).json({ error: 'Failed to download gallery' });
+    }
+});
+
 // Railway gallery data endpoint (JSON)
 app.get('/railway-gallery-data', (req, res) => {
     console.log('📊 Railway gallery data requested');
@@ -98,12 +121,19 @@ app.get('/bulk-download', (req, res) => {
             res.attachment('imagefx-gallery.zip');
             archive.pipe(res);
             
+            // Add all images to ZIP
             data.forEach(item => {
                 if (item.encodedImage) {
                     const buffer = Buffer.from(item.encodedImage, 'base64');
                     archive.append(buffer, { name: item.fileName });
                 }
             });
+            
+            // Add gallery.html to ZIP
+            if (fs.existsSync(galleryPath)) {
+                const galleryContent = fs.readFileSync(galleryPath, 'utf-8');
+                archive.append(galleryContent, { name: 'gallery.html' });
+            }
             
             archive.finalize();
         } catch (archiverError) {
@@ -853,59 +883,285 @@ app.post('/generate', async (req, res) => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ImageFX Gallery - Railway</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .controls { text-align: center; margin-bottom: 20px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-        .card { background: #2a2a2a; border-radius: 10px; padding: 15px; border: 1px solid #333; }
-        .card img { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; }
-        .meta { font-size: 12px; color: #ccc; margin-bottom: 10px; }
-        .download-btn { background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; margin-top: 10px; }
-        .download-btn:hover { background: #45a049; }
-        .railway-note { background: #ff9800; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 20px; text-align: center; }
-        .checkbox { margin-right: 10px; }
-        .bulk-controls { background: #333; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        .select-all-btn { background: #2196F3; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-right: 10px; }
-        .download-all-btn { background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; }
-        .download-selected-btn { background: #FF9800; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-left: 10px; }
+        :root {
+            --bg: #0b0f19;
+            --card: #111827;
+            --text: #e5e7eb;
+            --muted: #94a3b8;
+            --border: #1f2937;
+            --btn-green: #10b981;
+            --btn-green-hover: #059669;
+            --border-green: #10b981;
+            --green: #10b981;
+            --btn-purple: #8b5cf6;
+            --btn-purple-hover: #7c3aed;
+            --border-purple: #8b5cf6;
+            --purple: #8b5cf6;
+            --btn-red: #ef4444;
+            --btn-red-hover: #dc2626;
+            --border-red: #ef4444;
+            --red: #ef4444;
+            --red-2: #fecaca;
+            --input: #1f2937;
+            --bg-elev: #1f2937;
+        }
+        
+        body { 
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+            margin: 0; 
+            background: var(--bg); 
+            color: var(--text);
+            line-height: 1.5;
+        }
+        
+        .app { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        
+        .header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            padding: 20px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        
+        .header h1 { margin: 0 0 10px; font-size: 24px; font-weight: 600; }
+        
+        .railway-note { 
+            background: #ff9800; 
+            color: #000; 
+            padding: 12px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        .bulk-controls { 
+            background: var(--card); 
+            padding: 16px; 
+            border-radius: 12px; 
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            background: var(--btn-green);
+            color: var(--green);
+            border: 1px solid var(--border-green);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn:hover { background: var(--btn-green-hover); }
+        
+        .btn-purple { 
+            background: var(--btn-purple); 
+            color: var(--purple); 
+            border-color: var(--border-purple); 
+        }
+        
+        .btn-purple:hover { background: var(--btn-purple-hover); }
+        
+        .btn-blue { 
+            background: #2196F3; 
+            color: white; 
+            border-color: #2196F3; 
+        }
+        
+        .btn-blue:hover { background: #1976D2; }
+        
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+            gap: 16px; 
+        }
+        
+        .card { 
+            background: var(--card); 
+            border: 1px solid var(--border); 
+            border-radius: 12px; 
+            padding: 12px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .card:hover { 
+            border-color: var(--border-green);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        
+        .card.selected {
+            border-color: var(--btn-purple);
+            background: color-mix(in oklab, var(--card) 90%, var(--purple) 10%);
+        }
+        
+        .card img { 
+            width: 100%; 
+            height: 200px; 
+            object-fit: cover; 
+            border-radius: 8px; 
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+        }
+        
+        .meta { 
+            font-size: 13px; 
+            color: var(--muted); 
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+        
+        .meta strong { color: var(--text); display: block; margin-bottom: 4px; }
+        
+        .download-btn { 
+            background: var(--btn-green); 
+            color: var(--green); 
+            border: 1px solid var(--border-green); 
+            padding: 8px 16px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            text-decoration: none; 
+            display: inline-block; 
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .download-btn:hover { background: var(--btn-green-hover); }
+        
+        .checkbox { 
+            position: absolute; 
+            top: 8px; 
+            left: 8px; 
+            width: 20px; 
+            height: 20px; 
+            cursor: pointer;
+            z-index: 10;
+        }
+        
+        .selection-info {
+            background: var(--card);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+            text-align: center;
+            color: var(--muted);
+        }
+        
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+            .bulk-controls { flex-direction: column; align-items: center; }
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>ImageFX Gallery</h1>
-        <div class="railway-note">⚠️ Railway Environment: Images are temporary. Download them before they expire!</div>
-    </div>
-    
-    <div class="bulk-controls">
-        <button class="select-all-btn" onclick="selectAll()">Select All</button>
-        <button class="download-all-btn" onclick="downloadAll()">Download All (${data.length})</button>
-        <button class="download-selected-btn" onclick="downloadSelected()">Download Selected</button>
-        <button class="download-all-btn" onclick="downloadZip()" style="background: #9C27B0; margin-left: 10px;">Download ZIP</button>
-    </div>
-    
-    <div class="grid">
-        ${data.map((item, index) => `
-            <div class="card">
-                <input type="checkbox" class="checkbox" id="img-${index}" data-url="${item.downloadUrl}" data-filename="${item.fileName}">
-                <label for="img-${index}">Select</label>
-                <img src="data:image/png;base64,${item.encodedImage || ''}" alt="${item.fileName}" onerror="this.style.display='none'">
-                <div class="meta">
-                    <strong>${item.fileName}</strong><br>
-                    Prompt: ${item.prompt}<br>
-                    Seed: ${item.seed || 'Random'}<br>
-                    Model: ${item.model}<br>
-                    Generated: ${new Date(item.savedAt).toLocaleString()}
+    <div class="app">
+        <div class="header">
+            <h1>ImageFX Gallery</h1>
+            <div class="railway-note">⚠️ Railway Environment: Images are temporary. Download them before they expire!</div>
+        </div>
+        
+        <div class="selection-info" id="selectionInfo">
+            Click images to select them. Use Ctrl/Cmd+Click for multiple selection.
+        </div>
+        
+        <div class="bulk-controls">
+            <button class="btn btn-blue" onclick="selectAll()">Select All</button>
+            <button class="btn" onclick="downloadAll()">Download All (${data.length})</button>
+            <button class="btn btn-purple" onclick="downloadSelected()">Download Selected</button>
+            <button class="btn btn-purple" onclick="downloadZip()">Download ZIP</button>
+            <button class="btn" onclick="downloadGallery()">Download Gallery.html</button>
+        </div>
+        
+        <div class="grid">
+            ${data.map((item, index) => `
+                <div class="card" data-index="${index}" onclick="toggleSelection(event, ${index})">
+                    <input type="checkbox" class="checkbox" id="img-${index}" data-url="${item.downloadUrl}" data-filename="${item.fileName}" onclick="event.stopPropagation()">
+                    <img src="data:image/png;base64,${item.encodedImage || ''}" alt="${item.fileName}" onerror="this.style.display='none'">
+                    <div class="meta">
+                        <strong>${item.fileName}</strong>
+                        Prompt: ${item.prompt}<br>
+                        Seed: ${item.seed || 'Random'}<br>
+                        Model: ${item.model}<br>
+                        Generated: ${new Date(item.savedAt).toLocaleString()}
+                    </div>
+                    <a href="${item.downloadUrl}" class="download-btn" download="${item.fileName}" onclick="event.stopPropagation()">Download Image</a>
                 </div>
-                <a href="${item.downloadUrl}" class="download-btn" download="${item.fileName}">Download Image</a>
-            </div>
-        `).join('')}
+            `).join('')}
+        </div>
     </div>
     
     <script>
+        let selectedItems = new Set();
+        
+        function updateSelectionInfo() {
+            const info = document.getElementById('selectionInfo');
+            if (selectedItems.size === 0) {
+                info.textContent = 'Click images to select them. Use Ctrl/Cmd+Click for multiple selection.';
+            } else {
+                info.textContent = \`\${selectedItems.size} image(s) selected. Use Ctrl/Cmd+Click for multiple selection.\`;
+            }
+        }
+        
+        function toggleSelection(event, index) {
+            const card = event.currentTarget;
+            const checkbox = document.getElementById(\`img-\${index}\`);
+            
+            if (event.ctrlKey || event.metaKey) {
+                // Multi-select mode
+                if (selectedItems.has(index)) {
+                    selectedItems.delete(index);
+                    card.classList.remove('selected');
+                    checkbox.checked = false;
+                } else {
+                    selectedItems.add(index);
+                    card.classList.add('selected');
+                    checkbox.checked = true;
+                }
+            } else {
+                // Single select mode
+                selectedItems.clear();
+                document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+                document.querySelectorAll('.checkbox').forEach(c => c.checked = false);
+                
+                selectedItems.add(index);
+                card.classList.add('selected');
+                checkbox.checked = true;
+            }
+            
+            updateSelectionInfo();
+        }
+        
         function selectAll() {
             const checkboxes = document.querySelectorAll('.checkbox');
             const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-            checkboxes.forEach(cb => cb.checked = !allChecked);
+            
+            selectedItems.clear();
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+            
+            checkboxes.forEach((cb, index) => {
+                cb.checked = !allChecked;
+                if (!allChecked) {
+                    selectedItems.add(index);
+                    cb.closest('.card').classList.add('selected');
+                }
+            });
+            
+            updateSelectionInfo();
         }
         
         function downloadAll() {
@@ -919,11 +1175,12 @@ app.post('/generate', async (req, res) => {
         }
         
         function downloadSelected() {
-            const selectedCheckboxes = document.querySelectorAll('.checkbox:checked');
-            selectedCheckboxes.forEach(cb => {
+            const items = ${JSON.stringify(data)};
+            selectedItems.forEach(index => {
+                const item = items[index];
                 const link = document.createElement('a');
-                link.href = cb.dataset.url;
-                link.download = cb.dataset.filename;
+                link.href = item.downloadUrl;
+                link.download = item.fileName;
                 link.click();
             });
         }
@@ -931,6 +1188,29 @@ app.post('/generate', async (req, res) => {
         function downloadZip() {
             window.location.href = '/bulk-download';
         }
+        
+        function downloadGallery() {
+            const link = document.createElement('a');
+            link.href = window.location.href;
+            link.download = 'imagefx-gallery.html';
+            link.click();
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                selectAll();
+            }
+            if (e.key === 'Escape') {
+                selectedItems.clear();
+                document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+                document.querySelectorAll('.checkbox').forEach(c => c.checked = false);
+                updateSelectionInfo();
+            }
+        });
+        
+        updateSelectionInfo();
     </script>
     
     <script id="gallery-data" type="application/json">${JSON.stringify(data)}</script>
