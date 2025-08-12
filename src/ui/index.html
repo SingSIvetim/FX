@@ -309,6 +309,7 @@
                         <!-- Preview removed as Scan Folder covers it -->
                         <button class="btn" type="button" onclick="openOutputFolder()">Open Folder</button>
                         <button class="btn" type="button" onclick="scanOutputFolder()">Scan Folder</button>
+                        <button class="btn" type="button" onclick="scanOutputFolder()" title="Refresh folder contents">🔄</button>
                     </div>
                 </header>
                 <div class="prompt-help">Enter each prompt on a new line. Each line is processed separately.</div>
@@ -423,6 +424,7 @@
                             <div class="form-group">
                                 <label for="outputDir">Output Directory</label>
                                 <input type="text" id="outputDir" placeholder="C:/output/folder">
+                                <div class="input-help">Images will be saved here. Use "Scan Folder" to view saved images.</div>
                             </div>
                             <div class="form-group" style="grid-column: 1 / -1;">
                                 <label for="proxy">Proxy (optional)</label>
@@ -458,7 +460,7 @@
         <!-- Folder Contents - Outside layout grid -->
         <section class="card" id="folderStatus" style="display:none; margin-top: 20px;">
             <h2 style="font-size:16px; margin:0 0 8px;">Folder Contents</h2>
-            <div class="input-help" id="folderCount"></div>
+            <div class="input-help" id="folderCount">Click "Scan Folder" to view saved images. Folder will auto-refresh after generation.</div>
             <div id="folderGrid" style="margin-top:8px; display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:8px;"></div>
         </section>
         <div id="contextMenu" class="context-menu">
@@ -555,6 +557,7 @@
             const extractor = `let script = document.querySelector("#__NEXT_DATA__");\nlet obj = JSON.parse(script.textContent);\nlet authToken = obj["props"]["pageProps"]["session"]["access_token"];\n\nwindow.prompt("Copy the auth token: ", authToken);`;
             const codeEl = document.getElementById('extractorCode');
             if (codeEl) codeEl.textContent = extractor;
+            // Load saved settings
             const savedAuthToken = localStorage.getItem('authToken');
             const savedAuthFile = localStorage.getItem('authFile');
             const savedOutputDir = localStorage.getItem('outputDir');
@@ -567,9 +570,13 @@
             const savedSeed = localStorage.getItem('seed');
             const savedSeedLock = localStorage.getItem('seedLock');
             const savedModel = localStorage.getItem('model');
+            
+            // Set default output directory if not saved
+            const defaultOutputDir = savedOutputDir || 'C:/Users/Sino/Downloads/imagefx';
+            
             if (savedAuthToken) document.getElementById('authToken').value = savedAuthToken;
             if (savedAuthFile) document.getElementById('authFile').value = savedAuthFile;
-            if (savedOutputDir) document.getElementById('outputDir').value = savedOutputDir;
+            document.getElementById('outputDir').value = defaultOutputDir;
             if (savedProxy) document.getElementById('proxy').value = savedProxy;
             if (savedImageCount) document.getElementById('imageCount').value = savedImageCount;
             if (savedGenerationCount) document.getElementById('generationCount').value = savedGenerationCount;
@@ -860,6 +867,12 @@
                     }
                 }
                 statusText.textContent = 'All generations completed successfully!';
+                
+                // Automatically scan folder after successful generation
+                setTimeout(() => {
+                    scanOutputFolder();
+                }, 1000);
+                
             } catch (error) {
                 statusText.textContent = `Error: ${error.message}`;
             } finally {
@@ -876,19 +889,46 @@
 
         async function openOutputFolder() {
             const outputDir = document.getElementById('outputDir').value;
-            if (!outputDir) { alert('Please set an output directory first.'); return; }
+            if (!outputDir) { 
+                alert('Please set an output directory first.'); 
+                return; 
+            }
+            
             try {
-                const resp = await fetch(`${API_BASE}/open-folder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: outputDir }) });
+                console.log('Opening folder:', outputDir);
+                const resp = await fetch(`${API_BASE}/open-folder`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ path: outputDir }) 
+                });
+                
                 const ct = resp.headers.get('content-type') || '';
                 if (!ct.includes('application/json')) {
                     const text = await resp.text();
                     alert(`Open folder failed. Is the UI server running? Details: ${text.slice(0, 200)}...`);
                     return;
                 }
+                
                 const data = await resp.json();
-                if (data?.error) alert(`Failed to open folder: ${data.error}`);
+                if (data?.error) {
+                    alert(`Failed to open folder: ${data.error}`);
+                    return;
+                }
+                
+                // Show folder information
+                console.log('Folder opened successfully:', data);
+                alert(`Folder opened successfully!\n\nPath: ${data.path}\nFiles found: ${data.fileCount}\n\n${data.note || ''}`);
+                
+                // If there's a gallery, offer to open it
+                if (data.hasGallery && data.galleryUrl) {
+                    if (confirm('A gallery.html file was found. Would you like to view it?')) {
+                        window.open(data.galleryUrl, '_blank');
+                    }
+                }
+                
             } catch (e) {
-                alert('Failed to open folder.');
+                console.error('Open folder error:', e);
+                alert('Failed to open folder: ' + e.message);
             }
         }
 
@@ -896,7 +936,11 @@
         async function scanOutputFolder() {
             try {
                 const outputDir = document.getElementById('outputDir').value;
-                if (!outputDir) { alert('Please set an output directory first.'); return; }
+                if (!outputDir) { 
+                    alert('Please set an output directory first.'); 
+                    return; 
+                }
+                
                 const container = document.getElementById('folderGrid');
                 const countEl = document.getElementById('folderCount');
                 const box = document.getElementById('folderStatus');
@@ -905,8 +949,13 @@
                 box.style.display = 'block';
                 
                 console.log('Scanning folder:', outputDir);
-                const resp = await fetch(`${API_BASE}/list-images`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: outputDir, limit: 24 }) });
+                const resp = await fetch(`${API_BASE}/list-images`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ path: outputDir, limit: 24 }) 
+                });
                 console.log('Response status:', resp.status, resp.statusText);
+                
                 const ct = resp.headers.get('content-type') || '';
                 if (!ct.includes('application/json')) {
                     const text = await resp.text();
@@ -914,9 +963,22 @@
                     console.error('Scan Folder non-JSON response:', text);
                     return;
                 }
+                
                 const data = await resp.json();
-                if (data?.error) { countEl.textContent = `Error: ${data.error}`; return; }
-                countEl.textContent = `Found ${data.count} image(s)`;
+                if (data?.error) { 
+                    countEl.textContent = `Error: ${data.error}`; 
+                    console.error('Scan Folder error:', data.error);
+                    return; 
+                }
+                
+                console.log('Scan results:', data);
+                countEl.textContent = `Found ${data.count} image(s) in ${outputDir}`;
+                
+                if (data.count === 0) {
+                    container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found in this directory. Make sure the output directory matches where images are being saved.</div>';
+                    return;
+                }
+                
                 for (const item of data.items) {
                     const card = document.createElement('div');
                     card.className = 'card';
