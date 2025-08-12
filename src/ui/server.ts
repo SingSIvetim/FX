@@ -334,15 +334,20 @@ app.post('/generate', async (req: Request<{}, {}, GenerateRequest>, res: Respons
 
 // Health endpoint to verify routes are loaded
 app.get('/health', (_req: Request, res: Response) => {
+    console.log('🏥 Health check requested');
     res.json({ 
         ok: true, 
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         memory: process.memoryUsage(),
         routes: ['preview', 'open-folder', 'list-images', 'generate'],
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        port: process.env.PORT || 8080,
+        host: process.env.HOST || '0.0.0.0'
     });
 });
+
+
 
 // List images in a given directory with optional limit; returns count and thumbnails
 app.post('/list-images', async (req: Request<{}, {}, { path: string; limit?: number }>, res: Response) => {
