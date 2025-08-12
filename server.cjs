@@ -227,40 +227,62 @@ app.get('/railway-gallery', (req, res) => {
         const galleryPath = path.join(tempDir, 'gallery.html');
         
         if (!fs.existsSync(galleryPath)) {
-            // Create an empty gallery if none exists
+            // Create an empty gallery if none exists with modern UI theme
             const emptyGallery = `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ImageFX Gallery - Railway</title>
     <style>
         :root {
-            --bg: #0b0f19;
-            --card: #111827;
-            --text: #e5e7eb;
+            --bg: #000000;
+            --bg-elev: rgba(0, 0, 0, 0.85);
+            --card: rgba(255, 255, 255, 0.03);
+            --text: #ffffff;
             --muted: #94a3b8;
-            --border: #1f2937;
+            --muted-2: #64748b;
+            --border: rgba(255, 255, 255, 0.06);
+            --border-input: rgba(255, 255, 255, 0.12);
+            --green: #4ade80;
+            --green-2: #34d399;
+            --red: #ef4444;
+            --purple: #a5b4fc;
+            --orange: #f59e0b;
+            --btn-default: rgba(255, 255, 255, 0.05);
+            --btn-green: rgba(74, 222, 128, 0.15);
+            --btn-green-hover: rgba(74, 222, 128, 0.25);
         }
+        * { box-sizing: border-box; }
         body { 
-            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
             margin: 0; 
             background: var(--bg); 
             color: var(--text);
             line-height: 1.5;
         }
-        .app { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .app { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 24px; 
+        }
         .header { 
             text-align: center; 
             margin-bottom: 30px; 
-            padding: 20px;
+            padding: 24px;
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 12px;
+            backdrop-filter: blur(10px);
         }
-        .header h1 { margin: 0 0 10px; font-size: 24px; font-weight: 600; }
+        .header h1 { 
+            margin: 0 0 10px; 
+            font-size: 24px; 
+            font-weight: 600; 
+            color: var(--text);
+        }
         .railway-note { 
-            background: #ff9800; 
+            background: var(--orange); 
             color: #000; 
             padding: 12px; 
             border-radius: 8px; 
@@ -272,6 +294,36 @@ app.get('/railway-gallery', (req, res) => {
             text-align: center;
             padding: 60px 20px;
             color: var(--muted);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+        .empty-state h2 { 
+            margin: 0 0 10px; 
+            color: var(--text); 
+        }
+        .btn {
+            border: 1px solid var(--border-input);
+            background: var(--btn-default);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .btn-green {
+            background: var(--btn-green);
+            border-color: var(--green);
+        }
+        .btn-green:hover {
+            background: var(--btn-green-hover);
         }
     </style>
 </head>
@@ -284,6 +336,7 @@ app.get('/railway-gallery', (req, res) => {
         <div class="empty-state">
             <h2>No images found</h2>
             <p>Generate some images first to see them here!</p>
+            <a href="/" class="btn btn-green" style="margin-top: 20px;">Go to Generator</a>
         </div>
     </div>
     <script id="gallery-data" type="application/json">[]</script>
