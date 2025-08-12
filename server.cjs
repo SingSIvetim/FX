@@ -168,7 +168,7 @@ const generateImage = async ({ prompt, authorization, imageCount, seed, aspectRa
 
             makeRequest({
                 reqURL: "https://aisandbox-pa.googleapis.com/v1:runImageFx",
-                authorization,
+                authorization: `Bearer ${authorization}`,
                 method: "POST",
                 body: JSON.stringify(requestBody)
             })
@@ -176,7 +176,17 @@ const generateImage = async ({ prompt, authorization, imageCount, seed, aspectRa
                 console.log(`[DEBUG] ImageFX Response received:`, JSON.stringify(response, null, 2));
                 if (response.error) {
                     console.log(`[DEBUG] Error in response:`, response.error);
-                    reject(response);
+                    
+                    // Handle specific authentication errors
+                    if (response.error.code === 401) {
+                        console.log('[DEBUG] Authentication failed. Please check:');
+                        console.log('[DEBUG] 1. Token is valid and not expired');
+                        console.log('[DEBUG] 2. Token has proper ImageFX permissions');
+                        console.log('[DEBUG] 3. Token format is correct');
+                        reject(new Error(`Authentication failed: ${response.error.message}`));
+                    } else {
+                        reject(response);
+                    }
                 } else {
                     console.log(`[DEBUG] ImageFX Success response`);
                     resolve(response);
@@ -242,6 +252,11 @@ app.post('/generate', async (req, res) => {
         } else {
             throw new Error('No auth token or auth file provided');
         }
+
+        // Debug auth token (show first 10 chars for security)
+        console.log('[DEBUG] Auth token type:', finalAuthToken.startsWith('AIza') ? 'Google API Key' : 'OAuth Token');
+        console.log('[DEBUG] Auth token preview:', finalAuthToken.substring(0, 10) + '...');
+        console.log('[DEBUG] Auth token length:', finalAuthToken.length);
 
         // Create output directory if it doesn't exist (for local development)
         if (!isRailway && !fs.existsSync(outputDir)) {
