@@ -119,8 +119,10 @@ app.get('/railway-gallery-data/:profileName?', (req, res) => {
         
         // Filter by profile name if specified
         if (req.params.profileName && req.params.profileName !== 'public') {
+            // Only show photos from the specific profile
             data = data.filter(item => item.profileName === req.params.profileName);
         }
+        // If 'public' is specified, show all photos (no filtering)
         
         res.json(data);
         
@@ -219,10 +221,75 @@ app.get('/railway-gallery', (req, res) => {
     console.log('🖼️ Railway gallery requested');
     try {
         const tempDir = path.join(process.cwd(), 'temp_images');
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
         const galleryPath = path.join(tempDir, 'gallery.html');
         
         if (!fs.existsSync(galleryPath)) {
-            return res.status(404).json({ error: 'No gallery found. Generate some images first!' });
+            // Create an empty gallery if none exists
+            const emptyGallery = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageFX Gallery - Railway</title>
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --card: #111827;
+            --text: #e5e7eb;
+            --muted: #94a3b8;
+            --border: #1f2937;
+        }
+        body { 
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+            margin: 0; 
+            background: var(--bg); 
+            color: var(--text);
+            line-height: 1.5;
+        }
+        .app { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            padding: 20px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .header h1 { margin: 0 0 10px; font-size: 24px; font-weight: 600; }
+        .railway-note { 
+            background: #ff9800; 
+            color: #000; 
+            padding: 12px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            text-align: center;
+            font-weight: 500;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <h1>ImageFX Gallery</h1>
+            <div class="railway-note">⚠️ Railway Environment: Images are temporary. Download them before they expire!</div>
+        </div>
+        <div class="empty-state">
+            <h2>No images found</h2>
+            <p>Generate some images first to see them here!</p>
+        </div>
+    </div>
+    <script id="gallery-data" type="application/json">[]</script>
+</body>
+</html>`;
+            fs.writeFileSync(galleryPath, emptyGallery, { encoding: 'utf-8' });
         }
         
         const galleryContent = fs.readFileSync(galleryPath, 'utf-8');
@@ -932,6 +999,9 @@ app.post('/generate', async (req, res) => {
                 if (isRailway) {
                     // On Railway: Create profile-based gallery
                     const tempDir = path.join(process.cwd(), 'temp_images');
+                    if (!fs.existsSync(tempDir)) {
+                        fs.mkdirSync(tempDir, { recursive: true });
+                    }
                     const galleryPath = path.join(tempDir, 'gallery.html');
                     let data = [];
                     

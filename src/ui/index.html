@@ -1285,13 +1285,14 @@
                         select.removeChild(select.lastChild);
                     }
                     
-                    // Add profile options
-                    profiles.forEach(profile => {
-                        const option = document.createElement('option');
-                        option.value = profile;
-                        option.textContent = profile;
-                        select.appendChild(option);
-                    });
+                    // Only add "Public Photos" option, don't show individual profile names
+                    // This ensures privacy - users can only see their own photos or all photos
+                    if (profiles.length > 0) {
+                        const publicOption = document.createElement('option');
+                        publicOption.value = 'public';
+                        publicOption.textContent = 'Public Photos (All)';
+                        select.appendChild(publicOption);
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load profiles:', error);
