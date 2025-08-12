@@ -24,6 +24,11 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
 });
 app.use(express.static(path.join(__dirname)));
 
+// Serve the main HTML file at root
+app.get('/', (req: Request, res: Response) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 interface GenerateRequest {
     prompt: string;
     folderName?: string;
@@ -329,7 +334,14 @@ app.post('/generate', async (req: Request<{}, {}, GenerateRequest>, res: Respons
 
 // Health endpoint to verify routes are loaded
 app.get('/health', (_req: Request, res: Response) => {
-    res.json({ ok: true, routes: ['preview', 'open-folder', 'list-images', 'generate'] });
+    res.json({ 
+        ok: true, 
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        routes: ['preview', 'open-folder', 'list-images', 'generate'],
+        environment: process.env.NODE_ENV || 'development'
+    });
 });
 
 // List images in a given directory with optional limit; returns count and thumbnails
@@ -404,7 +416,12 @@ app.post('/list-images', async (req: Request<{}, {}, { path: string; limit?: num
     }
 });
 
-const PORT = Number(process.env.PORT) || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
+const PORT = Number(process.env.PORT) || 8080;
+const HOST = process.env.HOST || '0.0.0.0'; // Bind to all interfaces for Railway
+
+app.listen(PORT, HOST, () => {
+    console.log(`🚀 Server running at http://${HOST}:${PORT}`);
+    console.log(`📊 Health check available at http://${HOST}:${PORT}/health`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔌 Railway PORT: ${process.env.PORT || 'not set'}`);
 }); 

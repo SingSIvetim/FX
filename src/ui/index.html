@@ -514,10 +514,18 @@
     <script>
         const API_BASE = (function() {
             try {
-                const isLocal3000 = location.protocol.startsWith('http') && location.hostname === 'localhost' && location.port === '3000';
-                return isLocal3000 ? '' : 'http://localhost:3000';
+                // If we're on the same origin (localhost:8080), use relative URLs
+                if (location.protocol.startsWith('http') && location.hostname === 'localhost' && location.port === '8080') {
+                    return '';
+                }
+                // For Railway deployment, use relative URLs
+                if (location.hostname.includes('railway.app')) {
+                    return '';
+                }
+                // Fallback to localhost:8080
+                return 'http://localhost:8080';
             } catch (_) {
-                return 'http://localhost:3000';
+                return 'http://localhost:8080';
             }
         })();
         function setTheme(theme) {
