@@ -188,13 +188,15 @@ const generateImage = async (params) => {
         authLength: authorization?.length
     });
 
+    // Fix: Use correct field names for Google ImageFX API
     const requestBody = {
-        prompt,
-        imageCount,
-        aspectRatio,
-        modelNameType,
-        tool,
-        ...(seed !== null && { seed })
+        // Try the correct structure for Google ImageFX API
+        prompt: prompt,
+        numImages: imageCount,
+        aspectRatio: aspectRatio,
+        modelNameType: modelNameType,
+        tool: tool,
+        ...(seed !== null && { seed: seed })
     };
 
     console.log('[DEBUG] Request body:', JSON.stringify(requestBody, null, 2));
