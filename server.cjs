@@ -90,28 +90,44 @@ const saveImage = (fileName, imageContent, filePath = ".") => {
 const makeRequest = async (options, customHeaders = {}) => {
     console.log('[DEBUG] makeRequest called with URL:', options.reqURL);
     
-    const defaultHeaders = {
-        'accept': '*/*',
-        'accept-language': 'en-US,en;q=0.9',
-        'content-type': 'text/plain;charset=UTF-8',
-        'dnt': '1',
-        'origin': 'https://labs.google',
-        'priority': 'u=1, i',
-        'referer': 'https://labs.google/',
-        'sec-ch-ua': '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Linux"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'cross-site',
-        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
-        'authorization': options.authorization.startsWith('Bearer') ? options.authorization : `Bearer ${options.authorization}`,
-        ...customHeaders
-    };
+    let defaultHeaders;
+    
+    if (options.authorization.startsWith('AIza')) {
+        // API key - use X-goog-api-key header
+        defaultHeaders = {
+            'accept': '*/*',
+            'accept-language': 'en-US,en;q=0.9',
+            'content-type': 'application/json',
+            'x-goog-api-key': options.authorization,
+            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+            ...customHeaders
+        };
+    } else {
+        // OAuth token - use Authorization header
+        defaultHeaders = {
+            'accept': '*/*',
+            'accept-language': 'en-US,en;q=0.9',
+            'content-type': 'text/plain;charset=UTF-8',
+            'dnt': '1',
+            'origin': 'https://labs.google',
+            'priority': 'u=1, i',
+            'referer': 'https://labs.google/',
+            'sec-ch-ua': '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Linux"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'cross-site',
+            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+            'authorization': options.authorization.startsWith('Bearer') ? options.authorization : `Bearer ${options.authorization}`,
+            ...customHeaders
+        };
+    }
 
     console.log('[DEBUG] Headers:', {
         'content-type': defaultHeaders['content-type'],
         'authorization': defaultHeaders['authorization']?.substring(0, 20) + '...',
+        'x-goog-api-key': defaultHeaders['x-goog-api-key']?.substring(0, 20) + '...',
         'origin': defaultHeaders['origin'],
         'referer': defaultHeaders['referer']
     });
@@ -188,22 +204,47 @@ const generateImage = async (params) => {
         authLength: authorization?.length
     });
 
-    // Fix: Use correct field names for Google ImageFX API
-    const requestBody = {
-        // Try the correct structure for Google ImageFX API
-        prompt: prompt,
-        numImages: imageCount,
-        aspectRatio: aspectRatio,
-        modelNameType: modelNameType,
-        tool: tool,
-        ...(seed !== null && { seed: seed })
-    };
+    // Try different API endpoints and structures
+    let requestBody;
+    let apiUrl;
+    
+    // Try the Google Generative AI API first
+    if (authorization.startsWith('AIza')) {
+        // This is an API key, use Google Generative AI API
+        apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-4:generateContent';
+        requestBody = {
+            contents: [{
+                parts: [{
+                    text: prompt
+                }]
+            }],
+            generationConfig: {
+                temperature: 0.4,
+                topK: 32,
+                topP: 1,
+                maxOutputTokens: 2048,
+            }
+        };
+    } else {
+        // This is an OAuth token, try ImageFX API with different structure
+        apiUrl = 'https://aisandbox-pa.googleapis.com/v1:runImageFx';
+        requestBody = {
+            // Try a simpler structure
+            input: {
+                text: prompt,
+                count: imageCount,
+                aspectRatio: aspectRatio,
+                model: modelNameType
+            }
+        };
+    }
 
+    console.log('[DEBUG] Using API URL:', apiUrl);
     console.log('[DEBUG] Request body:', JSON.stringify(requestBody, null, 2));
 
     try {
         const response = await makeRequest({
-            reqURL: 'https://aisandbox-pa.googleapis.com/v1:runImageFx',
+            reqURL: apiUrl,
             authorization,
             method: 'POST',
             body: JSON.stringify(requestBody)
