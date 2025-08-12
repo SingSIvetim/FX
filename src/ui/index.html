@@ -1003,6 +1003,9 @@
                             return;
                         }
                         
+                        // Clear container and add bulk download controls at the top
+                        container.innerHTML = '';
+                        
                         // Add bulk download controls
                         const bulkControls = document.createElement('div');
                         bulkControls.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center;';
@@ -1027,10 +1030,19 @@
                         clearSelectionBtn.textContent = 'Clear Selection';
                         clearSelectionBtn.onclick = () => clearPhotoSelection();
                         
+                        const refreshBtn = document.createElement('button');
+                        refreshBtn.className = 'btn';
+                        refreshBtn.textContent = '🔄 Refresh';
+                        refreshBtn.onclick = () => {
+                            window.lastRefreshTime = 0; // Force refresh
+                            scanOutputFolder();
+                        };
+                        
                         bulkControls.appendChild(selectAllBtn);
                         bulkControls.appendChild(downloadSelectedBtn);
                         bulkControls.appendChild(downloadAllBtn);
                         bulkControls.appendChild(clearSelectionBtn);
+                        bulkControls.appendChild(refreshBtn);
                         
                         container.appendChild(bulkControls);
                         
@@ -1114,13 +1126,18 @@
                             container.appendChild(card);
                         });
                         
-                        // Start real-time refresh for Railway
+                        // Start real-time refresh for Railway (less frequent to prevent blinking)
                         if (!scanInterval) {
                             scanInterval = setInterval(() => {
                                 if (document.getElementById('folderStatus').style.display !== 'none') {
-                                    scanOutputFolder();
+                                    // Only refresh if the folder is visible and we haven't refreshed recently
+                                    const now = Date.now();
+                                    if (!window.lastRefreshTime || (now - window.lastRefreshTime) > 30000) {
+                                        window.lastRefreshTime = now;
+                                        scanOutputFolder();
+                                    }
                                 }
-                            }, 5000); // Refresh every 5 seconds
+                            }, 30000); // Refresh every 30 seconds to prevent blinking
                         }
                         
                     } else {
@@ -1165,6 +1182,9 @@
                         .sort((a, b) => new Date(b.meta?.savedAt || 0) - new Date(a.meta?.savedAt || 0))
                         .slice(0, 20);
                     
+                    // Clear container and add bulk download controls at the top
+                    container.innerHTML = '';
+                    
                     // Add bulk download controls
                     const bulkControls = document.createElement('div');
                     bulkControls.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center;';
@@ -1189,10 +1209,19 @@
                     clearSelectionBtn.textContent = 'Clear Selection';
                     clearSelectionBtn.onclick = () => clearPhotoSelection();
                     
+                    const refreshBtn = document.createElement('button');
+                    refreshBtn.className = 'btn';
+                    refreshBtn.textContent = '🔄 Refresh';
+                    refreshBtn.onclick = () => {
+                        window.lastRefreshTime = 0; // Force refresh
+                        scanOutputFolder();
+                    };
+                    
                     bulkControls.appendChild(selectAllBtn);
                     bulkControls.appendChild(downloadSelectedBtn);
                     bulkControls.appendChild(downloadAllBtn);
                     bulkControls.appendChild(clearSelectionBtn);
+                    bulkControls.appendChild(refreshBtn);
                     
                     container.appendChild(bulkControls);
                     
@@ -1269,13 +1298,18 @@
                         container.appendChild(card);
                     });
                     
-                    // Start real-time refresh for local development
+                    // Start real-time refresh for local development (less frequent to prevent blinking)
                     if (!scanInterval) {
                         scanInterval = setInterval(() => {
                             if (document.getElementById('folderStatus').style.display !== 'none' && document.getElementById('outputDir').value) {
-                                scanOutputFolder();
+                                // Only refresh if the folder is visible and we haven't refreshed recently
+                                const now = Date.now();
+                                if (!window.lastRefreshTime || (now - window.lastRefreshTime) > 30000) {
+                                    window.lastRefreshTime = now;
+                                    scanOutputFolder();
+                                }
                             }
-                        }, 5000); // Refresh every 5 seconds
+                        }, 30000); // Refresh every 30 seconds to prevent blinking
                     }
                 }
             } catch (error) {
@@ -1392,6 +1426,7 @@
             const countEl = document.getElementById('folderCount');
             const box = document.getElementById('folderStatus');
             
+            // Clear container first
             container.innerHTML = '';
             countEl.textContent = title;
             box.style.display = 'block';
@@ -1401,7 +1436,7 @@
                 return;
             }
             
-            // Add bulk download controls
+            // Add bulk download controls at the top
             const bulkControls = document.createElement('div');
             bulkControls.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center;';
             
@@ -1425,10 +1460,19 @@
             clearSelectionBtn.textContent = 'Clear Selection';
             clearSelectionBtn.onclick = () => clearPhotoSelection();
             
+            const refreshBtn = document.createElement('button');
+            refreshBtn.className = 'btn';
+            refreshBtn.textContent = '🔄 Refresh';
+            refreshBtn.onclick = () => {
+                window.lastRefreshTime = 0; // Force refresh
+                scanOutputFolder();
+            };
+            
             bulkControls.appendChild(selectAllBtn);
             bulkControls.appendChild(downloadSelectedBtn);
             bulkControls.appendChild(downloadAllBtn);
             bulkControls.appendChild(clearSelectionBtn);
+            bulkControls.appendChild(refreshBtn);
             
             container.appendChild(bulkControls);
             
@@ -1720,6 +1764,35 @@
                 }
             } catch (_) {
                 alert('Clipboard access denied. Please paste via right-click on the token field.');
+            }
+        }
+
+        // Clear refresh interval to prevent blinking
+        function clearRefreshInterval() {
+            if (scanInterval) {
+                clearInterval(scanInterval);
+                scanInterval = null;
+            }
+        }
+        
+        // Stop auto-refresh when folder is hidden
+        function stopAutoRefresh() {
+            clearRefreshInterval();
+        }
+        
+        // Start auto-refresh when folder is shown
+        function startAutoRefresh() {
+            if (!scanInterval) {
+                scanInterval = setInterval(() => {
+                    if (document.getElementById('folderStatus').style.display !== 'none') {
+                        // Only refresh if the folder is visible and we haven't refreshed recently
+                        const now = Date.now();
+                        if (!window.lastRefreshTime || (now - window.lastRefreshTime) > 10000) {
+                            window.lastRefreshTime = now;
+                            scanOutputFolder();
+                        }
+                    }
+                }, 15000); // Refresh every 15 seconds
             }
         }
     </script>
