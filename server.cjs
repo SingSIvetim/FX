@@ -1,6 +1,8 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
+const http = require('http');
 
 const app = express();
 app.use(express.json());
@@ -54,6 +56,125 @@ const aspectRatioMap = {
     'mobile_landscape': 'IMAGE_ASPECT_RATIO_LANDSCAPE'
 };
 
+// File management functions
+const saveFile = (fileName, fileContent, encoding = "utf-8", filePath = ".") => {
+    const fullPath = path.join(filePath, fileName);
+    const parsedPath = path.parse(fullPath);
+
+    if (parsedPath.dir && !fs.existsSync(parsedPath.dir) && parsedPath.dir != ".") {
+        try {
+            fs.mkdirSync(parsedPath.dir, { recursive: true });
+        } catch (error) {
+            console.log(`[!] Failed to create directory: ${parsedPath.dir}`);
+            console.log(error);
+            return false;
+        }
+    }
+
+    try {
+        fs.writeFileSync(fullPath, fileContent, { encoding });
+    } catch (error) {
+        console.log(`[!] Failed to write into file.`);
+        console.log(error);
+        return false;
+    }
+
+    return true;
+};
+
+const saveImage = (fileName, imageContent, filePath = ".") => {
+    return saveFile(fileName, imageContent, "base64", filePath);
+};
+
+// Request function for API calls
+const makeRequest = async (options, customHeaders = {}) => {
+    const defaultHeaders = {
+        'accept': '*/*',
+        'accept-language': 'en-US,en;q=0.9',
+        'content-type': 'text/plain;charset=UTF-8',
+        'dnt': '1',
+        'origin': 'https://labs.google',
+        'priority': 'u=1, i',
+        'referer': 'https://labs.google/',
+        'sec-ch-ua': '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Linux"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'cross-site',
+        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+        'authorization': options.authorization.startsWith('Bearer') ? options.authorization : `Bearer ${options.authorization}`,
+        ...customHeaders
+    };
+
+    const fetchOptions = {
+        method: options.method,
+        headers: defaultHeaders,
+        body: options.body
+    };
+
+    return new Promise((resolve, reject) => {
+        const url = new URL(options.reqURL);
+        const client = url.protocol === 'https:' ? https : http;
+        
+        const req = client.request(url, fetchOptions, (res) => {
+            let data = '';
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
+                try {
+                    const jsonData = JSON.parse(data);
+                    resolve(jsonData);
+                } catch (error) {
+                    resolve(data);
+                }
+            });
+        });
+
+        req.on('error', (error) => {
+            reject(error);
+        });
+
+        if (options.body) {
+            req.write(options.body);
+        }
+        req.end();
+    });
+};
+
+// Generate image function
+const generateImage = async (params) => {
+    const {
+        prompt,
+        authorization,
+        imageCount = 1,
+        seed = null,
+        aspectRatio = 'IMAGE_ASPECT_RATIO_SQUARE',
+        modelNameType = 'IMAGEN_3_1',
+        tool = 'IMAGE_FX',
+        proxy
+    } = params;
+
+    const requestBody = {
+        prompt,
+        imageCount,
+        aspectRatio,
+        modelNameType,
+        tool,
+        ...(seed !== null && { seed })
+    };
+
+    const response = await makeRequest({
+        reqURL: 'https://aisandbox-pa.googleapis.com/v1:runImageFx',
+        authorization,
+        method: 'POST',
+        body: JSON.stringify(requestBody)
+    });
+
+    return response;
+};
+
 // Generate endpoint with real functionality
 app.post('/generate', async (req, res) => {
     console.log('🖼️ Generate requested');
@@ -78,13 +199,178 @@ app.post('/generate', async (req, res) => {
         // Send initial progress
         res.write(JSON.stringify({ type: 'progress', data: 'Starting generation...' }) + '\n');
 
-        // For now, return a success message since we need to import the generateImage function
-        res.write(JSON.stringify({ type: 'progress', data: 'Server is ready for generation' }) + '\n');
-        res.write(JSON.stringify({ type: 'complete', data: 'Generation endpoint is working! Full functionality coming soon.' }) + '\n');
+        // Generate images for each generation count
+        for (let gen = 0; gen < generationCount; gen++) {
+            res.write(JSON.stringify({ 
+                type: 'progress', 
+                data: `Starting generation ${gen + 1} of ${generationCount}...` 
+            }) + '\n');
+
+            // Generate images with model fallback if needed
+            let selectedModel = model === 'best' ? 'IMAGEN_4_0' : 'IMAGEN_3_1';
+            let selectedTool = 'IMAGE_FX';
+            let response;
+            
+            try {
+                console.log(`[SERVER] Attempting generation with model ${selectedModel} and tool ${selectedTool}`);
+                res.write(JSON.stringify({ type: 'progress', data: `Using model: ${selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)'}` }) + '\n');
+                
+                response = await generateImage({
+                    prompt,
+                    authorization: finalAuthToken,
+                    imageCount: imageCount,
+                    seed: typeof seed === 'number' ? seed : null,
+                    aspectRatio: aspectRatioMap[aspectRatio],
+                    modelNameType: selectedModel,
+                    tool: selectedTool,
+                    proxy: proxy
+                });
+            } catch (e) {
+                console.log(`[SERVER] First attempt with ${selectedModel} failed:`, e?.message || e);
+                if (selectedModel === 'IMAGEN_4_0' && !noFallback) {
+                    selectedModel = 'IMAGEN_3_1';
+                    res.write(JSON.stringify({ type: 'progress', data: 'Falling back to Imagen 3 (quality)...' }) + '\n');
+                    response = await generateImage({
+                        prompt,
+                        authorization: finalAuthToken,
+                        imageCount: imageCount,
+                        seed: typeof seed === 'number' ? seed : null,
+                        aspectRatio: aspectRatioMap[aspectRatio],
+                        modelNameType: selectedModel,
+                        tool: selectedTool,
+                        proxy: proxy
+                    });
+                } else {
+                    if (selectedModel === 'IMAGEN_4_0' && noFallback) {
+                        res.write(JSON.stringify({ type: 'progress', data: `Force no-fallback: Imagen 4 failed: ${e?.message || e}` }) + '\n');
+                    }
+                    throw e;
+                }
+            }
+
+            // Save images and metadata
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            
+            // Create folder-specific output directory
+            const finalOutputDir = folderName && folderName.trim() !== '' 
+                ? path.join(outputDir, folderName.trim()) 
+                : outputDir;
+
+            if (!fs.existsSync(finalOutputDir)) {
+                fs.mkdirSync(finalOutputDir, { recursive: true });
+            }
+
+            let imageNumber = 1;
+            const newEntries = [];
+
+            if (response.imagePanels) {
+                for (const panel of response.imagePanels) {
+                    for (const image of panel.generatedImages) {
+                        const currentNum = imageNumber;
+                        const imageName = `${timestamp}-generation-${gen + 1}-${currentNum}-${aspectRatio}.png`;
+                        imageNumber++;
+                        
+                        if (saveImage(imageName, image.encodedImage, finalOutputDir)) {
+                            const meta = {
+                                fileName: imageName,
+                                prompt: prompt,
+                                seed: seed,
+                                aspectRatio: aspectRatio,
+                                generationNumber: gen + 1,
+                                imageNumber: currentNum,
+                                savedAt: new Date().toISOString(),
+                                mediaGenerationId: image.mediaGenerationId || null,
+                                model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)'
+                            };
+                            newEntries.push(meta);
+                            
+                            res.write(JSON.stringify({ 
+                                type: 'progress', 
+                                data: `Saved image ${currentNum}: ${imageName}` 
+                            }) + '\n');
+                        }
+                    }
+                }
+            }
+
+            // Update gallery.html with new entries
+            if (newEntries.length > 0) {
+                const galleryPath = path.join(finalOutputDir, 'gallery.html');
+                let data = [];
+                
+                if (fs.existsSync(galleryPath)) {
+                    try {
+                        const content = fs.readFileSync(galleryPath, 'utf-8');
+                        const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
+                        if (match) {
+                            data = JSON.parse(match[1]);
+                        }
+                    } catch (error) {
+                        console.log('Error reading existing gallery:', error);
+                    }
+                }
+                
+                // Merge by fileName (most recent wins)
+                const map = new Map();
+                for (const item of data) map.set(item.fileName, item);
+                for (const item of newEntries) map.set(item.fileName, item);
+                const merged = Array.from(map.values()).sort((a, b) => (a.savedAt > b.savedAt ? -1 : 1));
+
+                const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ImageFX Gallery</title>
+<style>
+:root{--bg:#0b0f19;--card:#111827;--text:#e5e7eb;--muted:#94a3b8;--border:#1f2937}
+body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
+.app{max-width:1200px;margin:0 auto;padding:20px}
+h1{margin:0 0 10px;font-size:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px}
+.thumb{width:100%;height:180px;object-fit:cover;border-radius:8px;border:1px solid var(--border);background:#0b1220}
+.meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
+.count{color:var(--muted);margin-bottom:10px}
+table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}
+td{border-top:1px solid var(--border);padding:4px 6px;vertical-align:top}
+</style>
+</head><body><div class="app">
+<h1>ImageFX Gallery</h1>
+<div class="count" id="count"></div>
+<div class="grid" id="grid"></div>
+<script id="gallery-data" type="application/json">${JSON.stringify(merged)}</script>
+<script>
+const data = JSON.parse(document.getElementById('gallery-data').textContent || '[]');
+document.getElementById('count').textContent = 'Total images: ' + data.length;
+const grid = document.getElementById('grid');
+for (const item of data){
+  const card = document.createElement('div');
+  card.className='card';
+  card.innerHTML = '\\n'
+    + '    <img class="thumb" src="' + item.fileName + '" alt="' + item.fileName + '">\\n'
+    + '    <div class="meta">Seed: ' + (item.seed ?? '') + '</div>\\n'
+    + '    <table>\\n'
+    + '      <tr><td>Prompt</td><td>' + String(item.prompt||'').replace(/</g,'&lt;') + '</td></tr>\\n'
+    + '      <tr><td>Saved</td><td>' + item.savedAt + '</td></tr>\\n'
+    + '      <tr><td>Aspect Ratio</td><td>' + item.aspectRatio + '</td></tr>\\n'
+    + '      <tr><td>Generation</td><td>' + item.generationNumber + '</td></tr>\\n'
+    + '      <tr><td>Image #</td><td>' + item.imageNumber + '</td></tr>\\n'
+    + '      <tr><td>Media ID</td><td>' + (item.mediaGenerationId||'') + '</td></tr>\\n'
+    + '    </table>';
+  grid.appendChild(card);
+}
+</script>
+</div></body></html>`;
+                
+                fs.writeFileSync(galleryPath, html, { encoding: 'utf-8' });
+                res.write(JSON.stringify({ type: 'progress', data: 'Updated gallery.html' }) + '\n');
+            }
+        }
+
+        res.write(JSON.stringify({ type: 'complete', data: 'All generations completed successfully!' }) + '\n');
         res.end();
         
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        console.error('Generation error:', error);
         res.write(JSON.stringify({ type: 'error', data: errorMessage }) + '\n');
         res.end();
     }
