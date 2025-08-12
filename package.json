@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node start.js",
     "dev": "npx tsx src/ui/server.ts",
-    "railway": "node server.js",
+    "railway": "node server.cjs",
     "build": "echo 'No build step required'",
     "test": "echo 'No tests specified'"
   },
