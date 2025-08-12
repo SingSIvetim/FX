@@ -41,6 +41,53 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Download image endpoint
+app.get('/download/:path(*)', (req, res) => {
+    console.log('💾 Download requested for:', req.params.path);
+    try {
+        const decodedPath = decodeURIComponent(req.params.path);
+        
+        if (!fs.existsSync(decodedPath)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        
+        const stat = fs.statSync(decodedPath);
+        if (!stat.isFile()) {
+            return res.status(400).json({ error: 'Not a file' });
+        }
+        
+        const fileName = path.basename(decodedPath);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Type', 'application/octet-stream');
+        
+        const fileStream = fs.createReadStream(decodedPath);
+        fileStream.pipe(res);
+    } catch (error) {
+        console.error('[DEBUG] Download error:', error);
+        res.status(500).json({ error: 'Failed to download file' });
+    }
+});
+
+// Gallery endpoint to serve gallery.html files
+app.get('/gallery/:path(*)', (req, res) => {
+    console.log('🖼️ Gallery requested for path:', req.params.path);
+    try {
+        const decodedPath = decodeURIComponent(req.params.path);
+        const galleryPath = path.join(decodedPath, 'gallery.html');
+        
+        if (!fs.existsSync(galleryPath)) {
+            return res.status(404).json({ error: 'Gallery not found' });
+        }
+        
+        const galleryContent = fs.readFileSync(galleryPath, 'utf-8');
+        res.setHeader('Content-Type', 'text/html');
+        res.send(galleryContent);
+    } catch (error) {
+        console.error('[DEBUG] Gallery error:', error);
+        res.status(500).json({ error: 'Failed to load gallery' });
+    }
+});
+
 // Token validation endpoint
 app.post('/validate-token', async (req, res) => {
     console.log('🔐 Token validation requested');
@@ -778,7 +825,35 @@ app.post('/open-folder', async (req, res) => {
         const stat = fs.statSync(targetPath);
         if (!stat.isDirectory()) throw new Error('Path is not a directory');
 
-        res.json({ status: 'ok', message: 'Folder path validated' });
+        // Get folder contents for display
+        const files = fs.readdirSync(targetPath)
+            .filter((f) => /\.(png|jpe?g|webp)$/i.test(f))
+            .map((name) => {
+                const full = path.join(targetPath, name);
+                const s = fs.statSync(full);
+                return { 
+                    name, 
+                    size: s.size, 
+                    mtime: new Date(s.mtimeMs).toISOString(),
+                    path: full
+                };
+            })
+            .sort((a, b) => new Date(b.mtime) - new Date(a.mtime));
+
+        // Check if gallery.html exists
+        const galleryPath = path.join(targetPath, 'gallery.html');
+        const hasGallery = fs.existsSync(galleryPath);
+
+        res.json({ 
+            status: 'ok', 
+            message: 'Folder opened successfully',
+            path: targetPath,
+            fileCount: files.length,
+            files: files.slice(0, 10), // Show first 10 files
+            hasGallery: hasGallery,
+            galleryUrl: hasGallery ? `/gallery/${encodeURIComponent(targetPath)}` : null,
+            note: 'In containerized environments, folders are accessed via the web interface. Use "Scan Folder" to view contents.'
+        });
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         res.status(400).json({ error: errorMessage });
