@@ -88,6 +88,8 @@ const saveImage = (fileName, imageContent, filePath = ".") => {
 
 // Request function for API calls
 const makeRequest = async (options, customHeaders = {}) => {
+    console.log('[DEBUG] makeRequest called with URL:', options.reqURL);
+    
     const defaultHeaders = {
         'accept': '*/*',
         'accept-language': 'en-US,en;q=0.9',
@@ -107,6 +109,13 @@ const makeRequest = async (options, customHeaders = {}) => {
         ...customHeaders
     };
 
+    console.log('[DEBUG] Headers:', {
+        'content-type': defaultHeaders['content-type'],
+        'authorization': defaultHeaders['authorization']?.substring(0, 20) + '...',
+        'origin': defaultHeaders['origin'],
+        'referer': defaultHeaders['referer']
+    });
+
     const fetchOptions = {
         method: options.method,
         headers: defaultHeaders,
@@ -117,26 +126,39 @@ const makeRequest = async (options, customHeaders = {}) => {
         const url = new URL(options.reqURL);
         const client = url.protocol === 'https:' ? https : http;
         
+        console.log('[DEBUG] Making request to:', url.toString());
+        
         const req = client.request(url, fetchOptions, (res) => {
+            console.log('[DEBUG] Response status:', res.statusCode);
+            console.log('[DEBUG] Response headers:', res.headers);
+            
             let data = '';
             res.on('data', (chunk) => {
                 data += chunk;
             });
             res.on('end', () => {
+                console.log('[DEBUG] Response data length:', data.length);
+                console.log('[DEBUG] Response data preview:', data.substring(0, 200) + '...');
+                
                 try {
                     const jsonData = JSON.parse(data);
+                    console.log('[DEBUG] Parsed JSON successfully');
                     resolve(jsonData);
                 } catch (error) {
+                    console.error('[DEBUG] Failed to parse JSON:', error);
+                    console.log('[DEBUG] Raw response:', data);
                     resolve(data);
                 }
             });
         });
 
         req.on('error', (error) => {
+            console.error('[DEBUG] Request error:', error);
             reject(error);
         });
 
         if (options.body) {
+            console.log('[DEBUG] Request body length:', options.body.length);
             req.write(options.body);
         }
         req.end();
@@ -156,6 +178,16 @@ const generateImage = async (params) => {
         proxy
     } = params;
 
+    console.log('[DEBUG] generateImage called with params:', {
+        prompt: prompt?.substring(0, 50) + '...',
+        imageCount,
+        seed,
+        aspectRatio,
+        modelNameType,
+        tool,
+        authLength: authorization?.length
+    });
+
     const requestBody = {
         prompt,
         imageCount,
@@ -165,14 +197,39 @@ const generateImage = async (params) => {
         ...(seed !== null && { seed })
     };
 
-    const response = await makeRequest({
-        reqURL: 'https://aisandbox-pa.googleapis.com/v1:runImageFx',
-        authorization,
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-    });
+    console.log('[DEBUG] Request body:', JSON.stringify(requestBody, null, 2));
 
-    return response;
+    try {
+        const response = await makeRequest({
+            reqURL: 'https://aisandbox-pa.googleapis.com/v1:runImageFx',
+            authorization,
+            method: 'POST',
+            body: JSON.stringify(requestBody)
+        });
+
+        console.log('[DEBUG] API Response received:', {
+            hasResponse: !!response,
+            responseType: typeof response,
+            hasImagePanels: !!(response && response.imagePanels),
+            imagePanelsCount: response?.imagePanels?.length || 0,
+            error: response?.error || null
+        });
+
+        if (response && response.error) {
+            console.error('[DEBUG] API Error:', response.error);
+            throw new Error(`API Error: ${response.error.message || response.error}`);
+        }
+
+        if (!response || !response.imagePanels) {
+            console.error('[DEBUG] Invalid response structure:', response);
+            throw new Error('Invalid response from API - no image panels');
+        }
+
+        return response;
+    } catch (error) {
+        console.error('[DEBUG] generateImage error:', error);
+        throw error;
+    }
 };
 
 // Generate endpoint with real functionality
@@ -225,21 +282,36 @@ app.post('/generate', async (req, res) => {
                     tool: selectedTool,
                     proxy: proxy
                 });
+                
+                console.log('[SERVER] generateImage completed successfully');
             } catch (e) {
+                console.error('[SERVER] Generation error details:', {
+                    message: e?.message,
+                    stack: e?.stack,
+                    name: e?.name
+                });
+                
                 console.log(`[SERVER] First attempt with ${selectedModel} failed:`, e?.message || e);
                 if (selectedModel === 'IMAGEN_4_0' && !noFallback) {
                     selectedModel = 'IMAGEN_3_1';
                     res.write(JSON.stringify({ type: 'progress', data: 'Falling back to Imagen 3 (quality)...' }) + '\n');
-                    response = await generateImage({
-                        prompt,
-                        authorization: finalAuthToken,
-                        imageCount: imageCount,
-                        seed: typeof seed === 'number' ? seed : null,
-                        aspectRatio: aspectRatioMap[aspectRatio],
-                        modelNameType: selectedModel,
-                        tool: selectedTool,
-                        proxy: proxy
-                    });
+                    
+                    try {
+                        response = await generateImage({
+                            prompt,
+                            authorization: finalAuthToken,
+                            imageCount: imageCount,
+                            seed: typeof seed === 'number' ? seed : null,
+                            aspectRatio: aspectRatioMap[aspectRatio],
+                            modelNameType: selectedModel,
+                            tool: selectedTool,
+                            proxy: proxy
+                        });
+                        console.log('[SERVER] Fallback generation completed successfully');
+                    } catch (fallbackError) {
+                        console.error('[SERVER] Fallback generation also failed:', fallbackError);
+                        throw fallbackError;
+                    }
                 } else {
                     if (selectedModel === 'IMAGEN_4_0' && noFallback) {
                         res.write(JSON.stringify({ type: 'progress', data: `Force no-fallback: Imagen 4 failed: ${e?.message || e}` }) + '\n');
