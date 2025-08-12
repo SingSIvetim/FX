@@ -953,9 +953,89 @@
                 box.style.display = 'block';
                 
                 if (isRailway) {
-                    // On Railway: Show Railway-specific message
-                    countEl.textContent = 'Railway Environment: Use "Open Folder" to view generated images with download links.';
-                    container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">On Railway, images are temporarily stored. Click "Open Folder" to view the gallery with download buttons.</div>';
+                    // On Railway: Get images from Railway gallery data
+                    try {
+                        const resp = await fetch(`${API_BASE}/railway-gallery-data`);
+                        if (resp.ok) {
+                            const data = await resp.json();
+                            countEl.textContent = `Found ${data.length} image(s) on Railway`;
+                            
+                            if (data.length === 0) {
+                                container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found. Generate some images first!</div>';
+                                return;
+                            }
+                            
+                            // Display images in Folder Contents
+                            data.forEach((item, index) => {
+                                const card = document.createElement('div');
+                                card.className = 'card';
+                                card.style.padding = '8px';
+                                card.style.position = 'relative';
+                                
+                                // Create image element
+                                const img = document.createElement('img');
+                                img.alt = item.fileName;
+                                img.style.cssText = 'width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;';
+                                
+                                // Set image source from base64 data
+                                if (item.encodedImage) {
+                                    img.src = `data:image/png;base64,${item.encodedImage}`;
+                                }
+                                
+                                // Add click handler for image details
+                                img.onclick = () => showDetail(item);
+                                
+                                // Create metadata
+                                const meta = document.createElement('div');
+                                meta.className = 'input-help';
+                                meta.style.marginTop = '6px';
+                                meta.style.fontSize = '11px';
+                                
+                                const promptShort = item.prompt ? (item.prompt.length > 30 ? item.prompt.slice(0, 30) + '…' : item.prompt) : '';
+                                meta.textContent = `${item.seed ? 'Seed: ' + item.seed + ' • ' : ''}${promptShort}`;
+                                
+                                // Create download button
+                                const downloadBtn = document.createElement('button');
+                                downloadBtn.className = 'btn';
+                                downloadBtn.style.cssText = 'position:absolute; top:4px; right:4px; padding:4px 8px; font-size:10px; background:var(--btn-green); color:var(--green); border:1px solid var(--border-green); border-radius:4px; cursor:pointer;';
+                                downloadBtn.textContent = 'Download';
+                                downloadBtn.onclick = (e) => {
+                                    e.stopPropagation();
+                                    const link = document.createElement('a');
+                                    link.href = item.downloadUrl;
+                                    link.download = item.fileName;
+                                    link.click();
+                                };
+                                
+                                // Add elements to card
+                                card.appendChild(downloadBtn);
+                                card.appendChild(img);
+                                card.appendChild(meta);
+                                container.appendChild(card);
+                            });
+                            
+                            // Add bulk download button
+                            const bulkCard = document.createElement('div');
+                            bulkCard.className = 'card';
+                            bulkCard.style.cssText = 'padding: 12px; text-align: center; grid-column: 1 / -1; background: var(--btn-purple); border-color: var(--border-purple);';
+                            bulkCard.innerHTML = `
+                                <div style="margin-bottom: 8px; font-weight: 500;">Bulk Download Options</div>
+                                <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                                    <button class="btn" onclick="downloadAllRailwayImages()" style="background: var(--btn-green); color: var(--green);">Download All (${data.length})</button>
+                                    <button class="btn" onclick="downloadRailwayZip()" style="background: var(--btn-purple); color: var(--purple);">Download ZIP</button>
+                                </div>
+                            `;
+                            container.appendChild(bulkCard);
+                            
+                        } else {
+                            countEl.textContent = 'No images found on Railway. Generate some images first!';
+                            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found. Generate some images first!</div>';
+                        }
+                    } catch (error) {
+                        console.error('Railway gallery data error:', error);
+                        countEl.textContent = 'Error loading Railway images';
+                        container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Error loading images from Railway.</div>';
+                    }
                     return;
                 }
                 
@@ -994,34 +1074,58 @@
                     const card = document.createElement('div');
                     card.className = 'card';
                     card.style.padding = '8px';
+                    card.style.position = 'relative';
+                    
                     let caption = item.name;
                     if (item.meta && (item.meta.seed || item.meta.prompt)) {
                         const promptTxt = String(item.meta.prompt || '');
-                        const promptShort = promptTxt ? (promptTxt.length > 50 ? promptTxt.slice(0, 50) + '…' : promptTxt) : '';
+                        const promptShort = promptTxt ? (promptTxt.length > 30 ? promptTxt.slice(0, 30) + '…' : promptTxt) : '';
                         caption = `${item.meta.seed ? 'Seed: ' + item.meta.seed + ' • ' : ''}${promptShort}`;
                     }
+                    
                     const img = document.createElement('img');
                     img.alt = item.name;
                     img.style.cssText = 'width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;';
+                    
+                    // Add click handler for image details
+                    img.onclick = () => showDetail(item);
+                    
+                    // Create download button for local files
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'btn';
+                    downloadBtn.style.cssText = 'position:absolute; top:4px; right:4px; padding:4px 8px; font-size:10px; background:var(--btn-green); color:var(--green); border:1px solid var(--border-green); border-radius:4px; cursor:pointer;';
+                    downloadBtn.textContent = 'Download';
+                    downloadBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        const link = document.createElement('a');
+                        link.href = item.dataUrl;
+                        link.download = item.name;
+                        link.click();
+                    };
+                    
                     // skeleton while loading
                     const sk = document.createElement('div');
                     sk.className = 'skeleton';
                     sk.style.height = '120px';
                     card.appendChild(sk);
+                    
                     const onload = () => { 
                         if (card.contains(sk)) {
                             card.replaceChild(img, sk); 
                         }
-                        // Add click handler safely after image is loaded
-                        img.onclick = () => showDetail(item);
                     };
                     img.onload = onload; 
                     img.onerror = onload; 
                     img.src = item.dataUrl;
+                    
                     const cap = document.createElement('div');
                     cap.className = 'input-help';
                     cap.style.marginTop = '6px';
+                    cap.style.fontSize = '11px';
                     cap.textContent = caption;
+                    
+                    // Add elements to card
+                    card.appendChild(downloadBtn);
                     card.appendChild(cap);
                     container.appendChild(card);
                 }
@@ -1071,7 +1175,35 @@
             try {
                 const r = await fetch(`${API_BASE}/health`);
                 return await r.json();
-            } catch { return null; }
+            } catch (e) {
+                return { error: e.message };
+            }
+        }
+
+        // Railway bulk download functions
+        async function downloadAllRailwayImages() {
+            try {
+                const resp = await fetch(`${API_BASE}/railway-gallery-data`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    data.forEach(item => {
+                        const link = document.createElement('a');
+                        link.href = item.downloadUrl;
+                        link.download = item.fileName;
+                        link.click();
+                    });
+                }
+            } catch (error) {
+                console.error('Download all error:', error);
+            }
+        }
+
+        async function downloadRailwayZip() {
+            try {
+                window.location.href = `${API_BASE}/bulk-download`;
+            } catch (error) {
+                console.error('Download ZIP error:', error);
+            }
         }
 
         // Detail modal controls

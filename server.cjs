@@ -41,6 +41,83 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Railway gallery data endpoint (JSON)
+app.get('/railway-gallery-data', (req, res) => {
+    console.log('📊 Railway gallery data requested');
+    try {
+        const tempDir = path.join(process.cwd(), 'temp_images');
+        const galleryPath = path.join(tempDir, 'gallery.html');
+        
+        if (!fs.existsSync(galleryPath)) {
+            return res.json([]);
+        }
+        
+        // Read gallery data
+        const content = fs.readFileSync(galleryPath, 'utf-8');
+        const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
+        
+        if (!match) {
+            return res.json([]);
+        }
+        
+        const data = JSON.parse(match[1]);
+        res.json(data);
+        
+    } catch (error) {
+        console.error('[DEBUG] Railway gallery data error:', error);
+        res.json([]);
+    }
+});
+
+// Bulk download endpoint for Railway
+app.get('/bulk-download', (req, res) => {
+    console.log('📦 Bulk download requested');
+    try {
+        const tempDir = path.join(process.cwd(), 'temp_images');
+        const galleryPath = path.join(tempDir, 'gallery.html');
+        
+        if (!fs.existsSync(galleryPath)) {
+            return res.status(404).json({ error: 'No gallery found. Generate some images first!' });
+        }
+        
+        // Read gallery data
+        const content = fs.readFileSync(galleryPath, 'utf-8');
+        const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
+        
+        if (!match) {
+            return res.status(404).json({ error: 'No gallery data found' });
+        }
+        
+        const data = JSON.parse(match[1]);
+        
+        // Try to use archiver, fallback to individual downloads
+        try {
+            const archiver = require('archiver');
+            const archive = archiver('zip', { zlib: { level: 9 } });
+            
+            res.attachment('imagefx-gallery.zip');
+            archive.pipe(res);
+            
+            data.forEach(item => {
+                if (item.encodedImage) {
+                    const buffer = Buffer.from(item.encodedImage, 'base64');
+                    archive.append(buffer, { name: item.fileName });
+                }
+            });
+            
+            archive.finalize();
+        } catch (archiverError) {
+            console.error('[DEBUG] Archiver not available, redirecting to gallery:', archiverError);
+            // Fallback: redirect to gallery where individual downloads are available
+            res.redirect('/railway-gallery');
+        }
+        
+    } catch (error) {
+        console.error('[DEBUG] Bulk download error:', error);
+        res.status(500).json({ error: 'Failed to create bulk download' });
+    }
+});
+
 // Railway gallery endpoint
 app.get('/railway-gallery', (req, res) => {
     console.log('🖼️ Railway gallery requested');
@@ -693,6 +770,7 @@ app.post('/generate', async (req, res) => {
                                         mediaGenerationId: image.mediaGenerationId || null,
                                         model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)',
                                         downloadUrl: downloadUrl,
+                                        encodedImage: image.encodedImage, // Include the image data for gallery display
                                         isRailway: true
                                     };
                                     newEntries.push(meta);
@@ -777,6 +855,7 @@ app.post('/generate', async (req, res) => {
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }
         .header { text-align: center; margin-bottom: 30px; }
+        .controls { text-align: center; margin-bottom: 20px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
         .card { background: #2a2a2a; border-radius: 10px; padding: 15px; border: 1px solid #333; }
         .card img { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; }
@@ -784,6 +863,11 @@ app.post('/generate', async (req, res) => {
         .download-btn { background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; margin-top: 10px; }
         .download-btn:hover { background: #45a049; }
         .railway-note { background: #ff9800; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 20px; text-align: center; }
+        .checkbox { margin-right: 10px; }
+        .bulk-controls { background: #333; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .select-all-btn { background: #2196F3; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-right: 10px; }
+        .download-all-btn { background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; }
+        .download-selected-btn { background: #FF9800; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-left: 10px; }
     </style>
 </head>
 <body>
@@ -791,9 +875,19 @@ app.post('/generate', async (req, res) => {
         <h1>ImageFX Gallery</h1>
         <div class="railway-note">⚠️ Railway Environment: Images are temporary. Download them before they expire!</div>
     </div>
+    
+    <div class="bulk-controls">
+        <button class="select-all-btn" onclick="selectAll()">Select All</button>
+        <button class="download-all-btn" onclick="downloadAll()">Download All (${data.length})</button>
+        <button class="download-selected-btn" onclick="downloadSelected()">Download Selected</button>
+        <button class="download-all-btn" onclick="downloadZip()" style="background: #9C27B0; margin-left: 10px;">Download ZIP</button>
+    </div>
+    
     <div class="grid">
-        ${data.map(item => `
+        ${data.map((item, index) => `
             <div class="card">
+                <input type="checkbox" class="checkbox" id="img-${index}" data-url="${item.downloadUrl}" data-filename="${item.fileName}">
+                <label for="img-${index}">Select</label>
                 <img src="data:image/png;base64,${item.encodedImage || ''}" alt="${item.fileName}" onerror="this.style.display='none'">
                 <div class="meta">
                     <strong>${item.fileName}</strong><br>
@@ -806,6 +900,39 @@ app.post('/generate', async (req, res) => {
             </div>
         `).join('')}
     </div>
+    
+    <script>
+        function selectAll() {
+            const checkboxes = document.querySelectorAll('.checkbox');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            checkboxes.forEach(cb => cb.checked = !allChecked);
+        }
+        
+        function downloadAll() {
+            const items = ${JSON.stringify(data)};
+            items.forEach(item => {
+                const link = document.createElement('a');
+                link.href = item.downloadUrl;
+                link.download = item.fileName;
+                link.click();
+            });
+        }
+        
+        function downloadSelected() {
+            const selectedCheckboxes = document.querySelectorAll('.checkbox:checked');
+            selectedCheckboxes.forEach(cb => {
+                const link = document.createElement('a');
+                link.href = cb.dataset.url;
+                link.download = cb.dataset.filename;
+                link.click();
+            });
+        }
+        
+        function downloadZip() {
+            window.location.href = '/bulk-download';
+        }
+    </script>
+    
     <script id="gallery-data" type="application/json">${JSON.stringify(data)}</script>
 </body>
 </html>`;
