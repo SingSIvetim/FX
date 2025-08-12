@@ -958,7 +958,15 @@ app.post('/generate', async (req, res) => {
                     
                     data = [...data, ...newEntries];
                     
-                    const html = `<!DOCTYPE html>
+                    // Read the template file
+                    const templatePath = path.join(process.cwd(), 'railway-gallery-template.html');
+                    let html = '';
+                    
+                    if (fs.existsSync(templatePath)) {
+                        html = fs.readFileSync(templatePath, 'utf-8');
+                    } else {
+                        // Fallback to inline template if file doesn't exist
+                        html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -998,399 +1006,431 @@ app.post('/generate', async (req, res) => {
             font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
             background: var(--bg); 
             color: var(--text);
-            line-height: 1.5;
-            min-height: 100vh;
-        }
-        
-        .app { 
-            max-width: 1200px; 
-            margin: 0 auto; 
             padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
         }
         
-        .header { 
-            text-align: center; 
-            margin-bottom: 30px; 
-            padding: 24px;
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
+        
+        .profile-controls {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 12px;
-            backdrop-filter: blur(12px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-        }
-        
-        .header h1 { 
-            margin: 0 0 12px; 
-            font-size: 28px; 
-            font-weight: 600;
-            background: linear-gradient(135deg, var(--green), var(--purple));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .railway-note { 
-            background: linear-gradient(135deg, #ff9800, #ff5722); 
-            color: #000; 
-            padding: 12px 16px; 
-            border-radius: 8px; 
-            margin-bottom: 0;
+            padding: 20px;
+            margin-bottom: 20px;
             text-align: center;
-            font-weight: 600;
-            font-size: 14px;
-            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
         }
         
-        .bulk-controls { 
-            background: var(--card); 
-            padding: 20px; 
-            border-radius: 12px; 
-            margin-bottom: 24px;
-            border: 1px solid var(--border);
+        .profile-controls h3 {
+            margin-bottom: 15px;
+            color: var(--text);
+        }
+        
+        .profile-input {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             justify-content: center;
-            flex-wrap: wrap;
-            backdrop-filter: blur(12px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .profile-input input {
+            background: var(--input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 15px;
+            color: var(--text);
+            font-size: 14px;
+            min-width: 200px;
+        }
+        
+        .profile-input input:focus {
+            outline: none;
+            border-color: var(--btn-green);
         }
         
         .btn {
             background: var(--btn-green);
-            color: var(--green);
-            border: 1px solid var(--border-green);
-            padding: 10px 18px;
+            color: white;
+            border: none;
             border-radius: 8px;
+            padding: 10px 20px;
             cursor: pointer;
             font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            display: inline-block;
-            backdrop-filter: blur(8px);
+            transition: background 0.2s;
         }
         
-        .btn:hover { 
-            background: var(--btn-green-hover); 
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        .btn:hover {
+            background: var(--btn-green-hover);
         }
         
-        .btn-purple { 
-            background: var(--btn-purple); 
-            color: var(--purple); 
-            border-color: var(--border-purple); 
+        .btn-purple {
+            background: var(--btn-purple);
         }
         
-        .btn-purple:hover { 
+        .btn-purple:hover {
             background: var(--btn-purple-hover);
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
         }
         
-        .btn-blue { 
-            background: #2196F3; 
-            color: white; 
-            border-color: #2196F3; 
+        .btn-red {
+            background: var(--btn-red);
         }
         
-        .btn-blue:hover { 
-            background: #1976D2;
-            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        .btn-red:hover {
+            background: var(--btn-red-hover);
         }
         
-        .grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
-            gap: 20px;
-            flex: 1;
+        .gallery-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         
-        .card { 
-            background: var(--card); 
-            border: 1px solid var(--border); 
-            border-radius: 12px; 
-            padding: 16px;
-            transition: all 0.3s ease;
+        .selection-info {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 15px;
+            font-size: 14px;
+        }
+        
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .gallery-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.2s;
             cursor: pointer;
             position: relative;
-            backdrop-filter: blur(12px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-            overflow: hidden;
         }
         
-        .card:hover { 
-            border-color: var(--border-green);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+        .gallery-item:hover {
+            border-color: var(--btn-green);
+            transform: translateY(-2px);
         }
         
-        .card.selected {
+        .gallery-item.selected {
             border-color: var(--btn-purple);
-            background: color-mix(in oklab, var(--card) 90%, var(--purple) 10%);
-            box-shadow: 0 8px 32px rgba(139, 92, 246, 0.3);
+            box-shadow: 0 0 0 2px var(--btn-purple);
         }
         
-        .card img { 
-            width: 100%; 
-            height: 220px; 
-            object-fit: cover; 
-            border-radius: 8px; 
-            margin-bottom: 16px;
-            border: 1px solid var(--border);
-            transition: all 0.3s ease;
-        }
-        
-        .card:hover img {
-            transform: scale(1.02);
-        }
-        
-        .meta { 
-            font-size: 13px; 
-            color: var(--muted); 
-            margin-bottom: 16px;
-            line-height: 1.5;
-        }
-        
-        .meta strong { 
-            color: var(--text); 
-            display: block; 
-            margin-bottom: 8px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        
-        .download-btn { 
-            background: var(--btn-green); 
-            color: var(--green); 
-            border: 1px solid var(--border-green); 
-            padding: 10px 18px; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            text-decoration: none; 
-            display: inline-block; 
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.2s ease;
+        .gallery-item img {
             width: 100%;
-            text-align: center;
+            height: 200px;
+            object-fit: cover;
+            display: block;
         }
         
-        .download-btn:hover { 
-            background: var(--btn-green-hover);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        .gallery-item-info {
+            padding: 12px;
         }
         
-        .checkbox { 
-            position: absolute; 
-            top: 12px; 
-            left: 12px; 
-            width: 22px; 
-            height: 22px; 
-            cursor: pointer;
-            z-index: 10;
-            accent-color: var(--purple);
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--muted);
-            background: var(--card);
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            backdrop-filter: blur(12px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-        }
-        
-        .empty-state h2 {
-            font-size: 24px;
-            margin-bottom: 12px;
+        .gallery-item-title {
+            font-size: 12px;
             color: var(--text);
+            margin-bottom: 5px;
+            font-weight: 500;
         }
         
-        .empty-state p {
-            font-size: 16px;
-            margin-bottom: 24px;
+        .gallery-item-meta {
+            font-size: 11px;
+            color: var(--muted);
+            line-height: 1.4;
         }
         
-        .empty-state .btn {
-            background: var(--btn-purple);
-            color: var(--purple);
-            border-color: var(--border-purple);
-            padding: 12px 24px;
+        .no-photos {
+            text-align: center;
+            padding: 40px;
+            color: var(--muted);
             font-size: 16px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--muted);
         }
         
         @media (max-width: 768px) {
-            .grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-            .bulk-controls { flex-direction: column; align-items: center; gap: 8px; }
-            .header h1 { font-size: 24px; }
-            .app { padding: 16px; }
+            .gallery-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 10px;
+            }
+            
+            .gallery-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .profile-input {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="app">
-        <div class="header">
-            <h1>ImageFX Gallery</h1>
-            <div class="railway-note">⚠️ Railway Environment: Images are temporary. Download them before they expire!</div>
+    <div class="header">
+        <h1>🚀 ImageFX Gallery</h1>
+        <p>View and download your generated images</p>
+    </div>
+    
+    <div class="profile-controls">
+        <h3>🔒 Profile Privacy Control</h3>
+        <div class="profile-input">
+            <input type="text" id="profileName" placeholder="Enter your profile name for privacy" />
+            <button class="btn" onclick="loadProfilePhotos()">View My Photos</button>
+            <button class="btn btn-purple" onclick="loadPublicPhotos()">View Public Photos</button>
         </div>
-        
-        ${data.length === 0 ? `
-            <div class="empty-state">
-                <h2>No images found</h2>
-                <p>Generate some images first to see them here!</p>
-                <a href="/" class="btn">Go to Generator</a>
-            </div>
-        ` : `
-            <div class="selection-info" id="selectionInfo">
-                Click images to select them. Use Ctrl/Cmd+Click for multiple selection.
-            </div>
-            
-            <div class="bulk-controls">
-                <button class="btn btn-blue" onclick="selectAll()">Select All</button>
-                <button class="btn" onclick="downloadAll()">Download All (${data.length})</button>
-                <button class="btn btn-purple" onclick="downloadSelected()">Download Selected</button>
-                <button class="btn btn-purple" onclick="downloadZip()">Download ZIP</button>
-                <button class="btn" onclick="downloadGallery()">Download Gallery.html</button>
-            </div>
-            
-            <div class="grid">
-                ${data.map((item, index) => `
-                    <div class="card" data-index="${index}" onclick="toggleSelection(event, ${index})">
-                        <input type="checkbox" class="checkbox" id="img-${index}" data-url="${item.downloadUrl}" data-filename="${item.fileName}" onclick="event.stopPropagation()">
-                        <img src="data:image/png;base64,${item.encodedImage || ''}" alt="${item.fileName}" onerror="this.style.display='none'">
-                        <div class="meta">
-                            <strong>${item.fileName}</strong>
-                            Prompt: ${item.prompt}<br>
-                            Seed: ${item.seed || 'Random'}<br>
-                            Model: ${item.model}<br>
-                            Generated: ${new Date(item.savedAt).toLocaleString()}
-                        </div>
-                        <a href="${item.downloadUrl}" class="download-btn" download="${item.fileName}" onclick="event.stopPropagation()">Download Image</a>
-                    </div>
-                `).join('')}
-            </div>
-        `}
+        <p style="font-size: 12px; color: var(--muted);">
+            Enter your profile name to view only your photos, or click "Public Photos" to see all images.
+        </p>
+    </div>
+    
+    <div class="gallery-controls">
+        <div class="selection-info" id="selectionInfo">
+            No images selected
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn" onclick="selectAll()">Select All</button>
+            <button class="btn btn-purple" onclick="downloadSelected()">Download Selected</button>
+            <button class="btn btn-purple" onclick="downloadAll()">Download All</button>
+            <button class="btn btn-red" onclick="clearSelection()">Clear Selection</button>
+        </div>
+    </div>
+    
+    <div id="galleryGrid" class="gallery-grid">
+        <div class="loading">Enter your profile name or click "Public Photos" to view images</div>
     </div>
     
     <script>
+        let allImages = [];
         let selectedItems = new Set();
+        let currentView = 'none'; // 'profile' or 'public'
+        
+        async function loadProfilePhotos() {
+            const profileName = document.getElementById('profileName').value.trim();
+            if (!profileName) {
+                alert('Please enter your profile name first.');
+                return;
+            }
+            
+            currentView = 'profile';
+            await loadPhotos('/profile-photos', { profileName });
+        }
+        
+        async function loadPublicPhotos() {
+            currentView = 'public';
+            await loadPhotos('/public-photos');
+        }
+        
+        async function loadPhotos(endpoint, body = null) {
+            const grid = document.getElementById('galleryGrid');
+            grid.innerHTML = '<div class="loading">Loading images...</div>';
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: body ? 'POST' : 'GET',
+                    headers: body ? { 'Content-Type': 'application/json' } : {},
+                    body: body ? JSON.stringify(body) : null
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load images');
+                }
+                
+                allImages = await response.json();
+                
+                if (allImages.length === 0) {
+                    grid.innerHTML = '<div class="no-photos">No images found</div>';
+                    return;
+                }
+                
+                displayImages(allImages);
+                
+            } catch (error) {
+                console.error('Error loading images:', error);
+                grid.innerHTML = '<div class="no-photos">Error loading images</div>';
+            }
+        }
+        
+        function displayImages(images) {
+            const grid = document.getElementById('galleryGrid');
+            grid.innerHTML = ''; // Clear previous images
+            
+            images.forEach((image, index) => {
+                const item = document.createElement('div');
+                item.className = 'gallery-item';
+                item.onclick = () => toggleSelection(index);
+                
+                const img = document.createElement('img');
+                img.src = image.encodedImage ? \`data:image/png;base64,\${image.encodedImage}\` : '';
+                img.alt = image.fileName || 'Generated image';
+                
+                const info = document.createElement('div');
+                info.className = 'gallery-item-info';
+                
+                const title = document.createElement('div');
+                title.className = 'gallery-item-title';
+                title.textContent = image.fileName || 'Generated Image';
+                
+                const meta = document.createElement('div');
+                meta.className = 'gallery-item-meta';
+                const prompt = image.prompt ? (image.prompt.length > 50 ? image.prompt.slice(0, 50) + '...' : image.prompt) : '';
+                const seed = image.seed ? \`Seed: \${image.seed}\` : '';
+                const profile = image.profileName ? \`Profile: \${image.profileName}\` : '';
+                meta.textContent = [seed, profile, prompt].filter(Boolean).join(' • ');
+                
+                info.appendChild(title);
+                info.appendChild(meta);
+                item.appendChild(img);
+                item.appendChild(info);
+                grid.appendChild(item);
+            });
+            
+            updateSelectionInfo();
+        }
+        
+        function toggleSelection(index) {
+            if (selectedItems.has(index)) {
+                selectedItems.delete(index);
+            } else {
+                selectedItems.add(index);
+            }
+            
+            updateSelectionDisplay();
+            updateSelectionInfo();
+        }
+        
+        function updateSelectionDisplay() {
+            const items = document.querySelectorAll('.gallery-item');
+            items.forEach((item, index) => {
+                if (selectedItems.has(index)) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
         
         function updateSelectionInfo() {
             const info = document.getElementById('selectionInfo');
-            if (!info) return;
-            
             if (selectedItems.size === 0) {
-                info.textContent = 'Click images to select them. Use Ctrl/Cmd+Click for multiple selection.';
+                info.textContent = 'No images selected';
+            } else if (selectedItems.size === allImages.length) {
+                info.textContent = \`All \${allImages.length} images selected\`;
             } else {
-                info.textContent = \`\${selectedItems.size} image(s) selected. Use Ctrl/Cmd+Click for multiple selection.\`;
+                info.textContent = \`\${selectedItems.size} of \${allImages.length} images selected\`;
             }
-        }
-        
-        function toggleSelection(event, index) {
-            const card = event.currentTarget;
-            const checkbox = document.getElementById(\`img-\${index}\`);
-            
-            if (event.ctrlKey || event.metaKey) {
-                // Multi-select mode
-                if (selectedItems.has(index)) {
-                    selectedItems.delete(index);
-                    card.classList.remove('selected');
-                    checkbox.checked = false;
-                } else {
-                    selectedItems.add(index);
-                    card.classList.add('selected');
-                    checkbox.checked = true;
-                }
-            } else {
-                // Single select mode
-                selectedItems.clear();
-                document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
-                document.querySelectorAll('.checkbox').forEach(c => c.checked = false);
-                
-                selectedItems.add(index);
-                card.classList.add('selected');
-                checkbox.checked = true;
-            }
-            
-            updateSelectionInfo();
         }
         
         function selectAll() {
-            const checkboxes = document.querySelectorAll('.checkbox');
-            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-            
             selectedItems.clear();
-            document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
-            
-            checkboxes.forEach((cb, index) => {
-                cb.checked = !allChecked;
-                if (!allChecked) {
-                    selectedItems.add(index);
-                    cb.closest('.card').classList.add('selected');
-                }
-            });
-            
+            for (let i = 0; i < allImages.length; i++) {
+                selectedItems.add(i);
+            }
+            updateSelectionDisplay();
             updateSelectionInfo();
         }
         
-        function downloadAll() {
-            const items = ${JSON.stringify(data)};
-            items.forEach(item => {
-                const link = document.createElement('a');
-                link.href = item.downloadUrl;
-                link.download = item.fileName;
-                link.click();
-            });
+        function clearSelection() {
+            selectedItems.clear();
+            updateSelectionDisplay();
+            updateSelectionInfo();
         }
         
-        function downloadSelected() {
-            const items = ${JSON.stringify(data)};
-            selectedItems.forEach(index => {
-                const item = items[index];
-                const link = document.createElement('a');
-                link.href = item.downloadUrl;
-                link.download = item.fileName;
-                link.click();
-            });
+        async function downloadSelected() {
+            if (selectedItems.size === 0) {
+                alert('Please select images to download');
+                return;
+            }
+            
+            const selectedImages = Array.from(selectedItems).map(index => allImages[index]);
+            await downloadImages(selectedImages, 'selected-images');
         }
         
-        function downloadZip() {
-            window.location.href = '/bulk-download';
+        async function downloadAll() {
+            if (allImages.length === 0) {
+                alert('No images to download');
+                return;
+            }
+            
+            await downloadImages(allImages, 'all-images');
         }
         
-        function downloadGallery() {
-            const link = document.createElement('a');
-            link.href = window.location.href;
-            link.download = 'imagefx-gallery.html';
-            link.click();
+        async function downloadImages(images, filename) {
+            try {
+                const response = await fetch('/bulk-download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        images: images.map(img => ({
+                            fileName: img.fileName,
+                            downloadUrl: img.downloadUrl,
+                            encodedImage: img.encodedImage
+                        }))
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Download failed');
+                }
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = \`\${filename}-\${new Date().toISOString().slice(0, 10)}.zip\`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+            } catch (error) {
+                console.error('Download error:', error);
+                alert('Error downloading images');
+            }
         }
         
         // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                selectAll();
-            }
+        document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                selectedItems.clear();
-                document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
-                document.querySelectorAll('.checkbox').forEach(c => c.checked = false);
-                updateSelectionInfo();
+                clearSelection();
+            } else if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'a') {
+                    e.preventDefault();
+                    selectAll();
+                }
             }
         });
         
-        updateSelectionInfo();
+        // Auto-load public photos on page load
+        window.addEventListener('load', () => {
+            loadPublicPhotos();
+        });
     </script>
     
     <script id="gallery-data" type="application/json">${JSON.stringify(data)}</script>
 </body>
 </html>`;
+                    }
                     
                     fs.writeFileSync(galleryPath, html, { encoding: 'utf-8' });
                     res.write(JSON.stringify({ type: 'progress', data: 'Updated gallery.html (Railway)' }) + '\n');

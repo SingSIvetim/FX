@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageFX Gallery - Railway</title>
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --card: #111827;
+            --text: #e5e7eb;
+            --muted: #94a3b8;
+            --border: #1f2937;
+            --btn-green: #10b981;
+            --btn-green-hover: #059669;
+            --border-green: #10b981;
+            --green: #10b981;
+            --btn-purple: #8b5cf6;
+            --btn-purple-hover: #7c3aed;
+            --border-purple: #8b5cf6;
+            --purple: #8b5cf6;
+            --btn-red: #ef4444;
+            --btn-red-hover: #dc2626;
+            --border-red: #ef4444;
+            --red: #ef4444;
+            --red-2: #fecaca;
+            --input: #1f2937;
+            --bg-elev: #1f2937;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+            background: var(--bg); 
+            color: var(--text);
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
+        
+        .profile-controls {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .profile-controls h3 {
+            margin-bottom: 15px;
+            color: var(--text);
+        }
+        
+        .profile-input {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .profile-input input {
+            background: var(--input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 15px;
+            color: var(--text);
+            font-size: 14px;
+            min-width: 200px;
+        }
+        
+        .profile-input input:focus {
+            outline: none;
+            border-color: var(--btn-green);
+        }
+        
+        .btn {
+            background: var(--btn-green);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: var(--btn-green-hover);
+        }
+        
+        .btn-purple {
+            background: var(--btn-purple);
+        }
+        
+        .btn-purple:hover {
+            background: var(--btn-purple-hover);
+        }
+        
+        .btn-red {
+            background: var(--btn-red);
+        }
+        
+        .btn-red:hover {
+            background: var(--btn-red-hover);
+        }
+        
+        .gallery-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .selection-info {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 15px;
+            font-size: 14px;
+        }
+        
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .gallery-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .gallery-item:hover {
+            border-color: var(--btn-green);
+            transform: translateY(-2px);
+        }
+        
+        .gallery-item.selected {
+            border-color: var(--btn-purple);
+            box-shadow: 0 0 0 2px var(--btn-purple);
+        }
+        
+        .gallery-item img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .gallery-item-info {
+            padding: 12px;
+        }
+        
+        .gallery-item-title {
+            font-size: 12px;
+            color: var(--text);
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .gallery-item-meta {
+            font-size: 11px;
+            color: var(--muted);
+            line-height: 1.4;
+        }
+        
+        .no-photos {
+            text-align: center;
+            padding: 40px;
+            color: var(--muted);
+            font-size: 16px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--muted);
+        }
+        
+        @media (max-width: 768px) {
+            .gallery-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 10px;
+            }
+            
+            .gallery-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .profile-input {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 ImageFX Gallery</h1>
+        <p>View and download your generated images</p>
+    </div>
+    
+    <div class="profile-controls">
+        <h3>🔒 Profile Privacy Control</h3>
+        <div class="profile-input">
+            <input type="text" id="profileName" placeholder="Enter your profile name for privacy" />
+            <button class="btn" onclick="loadProfilePhotos()">View My Photos</button>
+            <button class="btn btn-purple" onclick="loadPublicPhotos()">View Public Photos</button>
+        </div>
+        <p style="font-size: 12px; color: var(--muted);">
+            Enter your profile name to view only your photos, or click "Public Photos" to see all images.
+        </p>
+    </div>
+    
+    <div class="gallery-controls">
+        <div class="selection-info" id="selectionInfo">
+            No images selected
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn" onclick="selectAll()">Select All</button>
+            <button class="btn btn-purple" onclick="downloadSelected()">Download Selected</button>
+            <button class="btn btn-purple" onclick="downloadAll()">Download All</button>
+            <button class="btn btn-red" onclick="clearSelection()">Clear Selection</button>
+        </div>
+    </div>
+    
+    <div id="galleryGrid" class="gallery-grid">
+        <div class="loading">Enter your profile name or click "Public Photos" to view images</div>
+    </div>
+    
+    <script>
+        let allImages = [];
+        let selectedItems = new Set();
+        let currentView = 'none'; // 'profile' or 'public'
+        
+        async function loadProfilePhotos() {
+            const profileName = document.getElementById('profileName').value.trim();
+            if (!profileName) {
+                alert('Please enter your profile name first.');
+                return;
+            }
+            
+            currentView = 'profile';
+            await loadPhotos('/profile-photos', { profileName });
+        }
+        
+        async function loadPublicPhotos() {
+            currentView = 'public';
+            await loadPhotos('/public-photos');
+        }
+        
+        async function loadPhotos(endpoint, body = null) {
+            const grid = document.getElementById('galleryGrid');
+            grid.innerHTML = '<div class="loading">Loading images...</div>';
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: body ? 'POST' : 'GET',
+                    headers: body ? { 'Content-Type': 'application/json' } : {},
+                    body: body ? JSON.stringify(body) : null
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load images');
+                }
+                
+                allImages = await response.json();
+                
+                if (allImages.length === 0) {
+                    grid.innerHTML = '<div class="no-photos">No images found</div>';
+                    return;
+                }
+                
+                displayImages(allImages);
+                
+            } catch (error) {
+                console.error('Error loading images:', error);
+                grid.innerHTML = '<div class="no-photos">Error loading images</div>';
+            }
+        }
+        
+        function displayImages(images) {
+            const grid = document.getElementById('galleryGrid');
+            grid.innerHTML = '';
+            
+            images.forEach((image, index) => {
+                const item = document.createElement('div');
+                item.className = 'gallery-item';
+                item.onclick = () => toggleSelection(index);
+                
+                const img = document.createElement('img');
+                img.src = image.encodedImage ? `data:image/png;base64,${image.encodedImage}` : '';
+                img.alt = image.fileName || 'Generated image';
+                
+                const info = document.createElement('div');
+                info.className = 'gallery-item-info';
+                
+                const title = document.createElement('div');
+                title.className = 'gallery-item-title';
+                title.textContent = image.fileName || 'Generated Image';
+                
+                const meta = document.createElement('div');
+                meta.className = 'gallery-item-meta';
+                const prompt = image.prompt ? (image.prompt.length > 50 ? image.prompt.slice(0, 50) + '...' : image.prompt) : '';
+                const seed = image.seed ? `Seed: ${image.seed}` : '';
+                const profile = image.profileName ? `Profile: ${image.profileName}` : '';
+                meta.textContent = [seed, profile, prompt].filter(Boolean).join(' • ');
+                
+                info.appendChild(title);
+                info.appendChild(meta);
+                item.appendChild(img);
+                item.appendChild(info);
+                grid.appendChild(item);
+            });
+            
+            updateSelectionInfo();
+        }
+        
+        function toggleSelection(index) {
+            if (selectedItems.has(index)) {
+                selectedItems.delete(index);
+            } else {
+                selectedItems.add(index);
+            }
+            
+            updateSelectionDisplay();
+            updateSelectionInfo();
+        }
+        
+        function updateSelectionDisplay() {
+            const items = document.querySelectorAll('.gallery-item');
+            items.forEach((item, index) => {
+                if (selectedItems.has(index)) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+        
+        function updateSelectionInfo() {
+            const info = document.getElementById('selectionInfo');
+            if (selectedItems.size === 0) {
+                info.textContent = 'No images selected';
+            } else if (selectedItems.size === allImages.length) {
+                info.textContent = `${selectedItems.size} of ${allImages.length} images selected`;
+            } else {
+                info.textContent = `${selectedItems.size} of ${allImages.length} images selected`;
+            }
+        }
+        
+        function selectAll() {
+            selectedItems.clear();
+            for (let i = 0; i < allImages.length; i++) {
+                selectedItems.add(i);
+            }
+            updateSelectionDisplay();
+            updateSelectionInfo();
+        }
+        
+        function clearSelection() {
+            selectedItems.clear();
+            updateSelectionDisplay();
+            updateSelectionInfo();
+        }
+        
+        async function downloadSelected() {
+            if (selectedItems.size === 0) {
+                alert('Please select images to download');
+                return;
+            }
+            
+            const selectedImages = Array.from(selectedItems).map(index => allImages[index]);
+            await downloadImages(selectedImages, 'selected-images');
+        }
+        
+        async function downloadAll() {
+            if (allImages.length === 0) {
+                alert('No images to download');
+                return;
+            }
+            
+            await downloadImages(allImages, 'all-images');
+        }
+        
+        async function downloadImages(images, filename) {
+            try {
+                const response = await fetch('/bulk-download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        images: images.map(img => ({
+                            fileName: img.fileName,
+                            downloadUrl: img.downloadUrl,
+                            encodedImage: img.encodedImage
+                        }))
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Download failed');
+                }
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+            } catch (error) {
+                console.error('Download error:', error);
+                alert('Error downloading images');
+            }
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                clearSelection();
+            } else if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'a') {
+                    e.preventDefault();
+                    selectAll();
+                }
+            }
+        });
+        
+        // Auto-load public photos on page load
+        window.addEventListener('load', () => {
+            loadPublicPhotos();
+        });
+    </script>
+</body>
+</html>

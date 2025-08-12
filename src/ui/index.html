@@ -967,238 +967,321 @@
 
         let scanInterval = null;
         async function scanOutputFolder() {
+            const outputDir = document.getElementById('outputDir').value;
+            const container = document.getElementById('folderGrid');
+            const countEl = document.getElementById('folderCount');
+            const box = document.getElementById('folderStatus');
+            
+            if (!outputDir) {
+                countEl.textContent = 'No output directory set';
+                return;
+            }
+            
+            box.style.display = 'block';
+            countEl.textContent = 'Scanning folder...';
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Scanning...</div>';
+            
             try {
-                const outputDir = document.getElementById('outputDir').value;
-                if (!outputDir) { 
-                    return; 
-                }
-                
                 // Check if we're on Railway
                 const isRailway = location.hostname.includes('railway.app');
                 
-                const container = document.getElementById('folderGrid');
-                const countEl = document.getElementById('folderCount');
-                const box = document.getElementById('folderStatus');
-                container.innerHTML = '';
-                countEl.textContent = 'Scanning...';
-                box.style.display = 'block';
-                
                 if (isRailway) {
-                    // On Railway: Get images from Railway gallery data
-                    try {
-                        const resp = await fetch(`${API_BASE}/railway-gallery-data`);
-                        if (resp.ok) {
-                            const data = await resp.json();
-                            countEl.textContent = `Found ${data.length} image(s) on Railway`;
+                    // On Railway: Fetch from railway-gallery-data endpoint
+                    const resp = await fetch(`${API_BASE}/railway-gallery-data`);
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        
+                        // Sort by savedAt (newest first) and limit to last 20
+                        const sortedData = data
+                            .sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))
+                            .slice(0, 20);
+                        
+                        countEl.textContent = `Found ${sortedData.length} image(s) (showing last 20, newest first)`;
+                        
+                        if (sortedData.length === 0) {
+                            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found. Generate some images first!</div>';
+                            return;
+                        }
+                        
+                        // Add bulk download controls
+                        const bulkControls = document.createElement('div');
+                        bulkControls.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center;';
+                        
+                        const selectAllBtn = document.createElement('button');
+                        selectAllBtn.className = 'btn';
+                        selectAllBtn.textContent = 'Select All';
+                        selectAllBtn.onclick = () => selectAllPhotos();
+                        
+                        const downloadSelectedBtn = document.createElement('button');
+                        downloadSelectedBtn.className = 'btn btn-purple';
+                        downloadSelectedBtn.textContent = 'Download Selected';
+                        downloadSelectedBtn.onclick = () => downloadSelectedPhotos();
+                        
+                        const downloadAllBtn = document.createElement('button');
+                        downloadAllBtn.className = 'btn btn-purple';
+                        downloadAllBtn.textContent = 'Download All';
+                        downloadAllBtn.onclick = () => downloadAllPhotos(sortedData);
+                        
+                        const clearSelectionBtn = document.createElement('button');
+                        clearSelectionBtn.className = 'btn btn-red';
+                        clearSelectionBtn.textContent = 'Clear Selection';
+                        clearSelectionBtn.onclick = () => clearPhotoSelection();
+                        
+                        bulkControls.appendChild(selectAllBtn);
+                        bulkControls.appendChild(downloadSelectedBtn);
+                        bulkControls.appendChild(downloadAllBtn);
+                        bulkControls.appendChild(clearSelectionBtn);
+                        
+                        container.appendChild(bulkControls);
+                        
+                        // Create selection info
+                        const selectionInfo = document.createElement('div');
+                        selectionInfo.id = 'photoSelectionInfo';
+                        selectionInfo.style.cssText = 'text-align: center; margin-bottom: 15px; padding: 10px; background: var(--card); border-radius: 8px; font-size: 14px; color: var(--muted);';
+                        selectionInfo.textContent = 'No photos selected';
+                        container.appendChild(selectionInfo);
+                        
+                        // Store photos data globally for selection
+                        window.currentPhotosData = sortedData;
+                        window.selectedPhotoIndices = new Set();
+                        
+                        sortedData.forEach((item, index) => {
+                            const card = document.createElement('div');
+                            card.className = 'card photo-card';
+                            card.style.padding = '8px';
+                            card.style.position = 'relative';
+                            card.dataset.index = index;
+                            card.onclick = () => togglePhotoSelection(index);
                             
-                            if (data.length === 0) {
-                                container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found. Generate some images first!</div>';
-                                return;
+                            let caption = item.fileName;
+                            if (item.prompt) {
+                                const promptTxt = String(item.prompt);
+                                const promptShort = promptTxt ? (promptTxt.length > 30 ? promptTxt.slice(0, 30) + '…' : promptTxt) : '';
+                                caption = `${item.seed ? 'Seed: ' + item.seed + ' • ' : ''}${promptShort}`;
                             }
                             
-                            // Display images in Folder Contents
-                            data.forEach((item, index) => {
-                                const card = document.createElement('div');
-                                card.className = 'card';
-                                card.style.padding = '8px';
-                                card.style.position = 'relative';
-                                
-                                // Create image element
-                                const img = document.createElement('img');
-                                img.alt = item.fileName;
-                                img.style.cssText = 'width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;';
-                                
-                                // Set image source from base64 data
-                                if (item.encodedImage) {
-                                    img.src = `data:image/png;base64,${item.encodedImage}`;
+                            const img = document.createElement('img');
+                            img.alt = item.fileName;
+                            img.style.cssText = 'width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;';
+                            
+                            // Set image source from base64 data
+                            if (item.encodedImage) {
+                                img.src = `data:image/png;base64,${item.encodedImage}`;
+                            }
+                            
+                            // Add click handler for image details
+                            img.onclick = (e) => {
+                                e.stopPropagation();
+                                showDetail(item);
+                            };
+                            
+                            // Create download button
+                            const downloadBtn = document.createElement('button');
+                            downloadBtn.className = 'btn';
+                            downloadBtn.style.cssText = 'position:absolute; top:4px; right:4px; padding:4px 8px; font-size:10px; background:var(--btn-green); color:white; border:1px solid var(--border-green); border-radius:4px; cursor:pointer;';
+                            downloadBtn.textContent = 'Download';
+                            downloadBtn.onclick = (e) => {
+                                e.stopPropagation();
+                                const link = document.createElement('a');
+                                link.href = item.downloadUrl;
+                                link.download = item.fileName;
+                                link.click();
+                            };
+                            
+                            // skeleton while loading
+                            const sk = document.createElement('div');
+                            sk.className = 'skeleton';
+                            sk.style.height = '120px';
+                            card.appendChild(sk);
+                            
+                            const onload = () => { 
+                                if (card.contains(sk)) {
+                                    card.replaceChild(img, sk); 
                                 }
-                                
-                                // Add click handler for image details
-                                img.onclick = () => showDetail(item);
-                                
-                                // Create metadata
-                                const meta = document.createElement('div');
-                                meta.className = 'input-help';
-                                meta.style.marginTop = '6px';
-                                meta.style.fontSize = '11px';
-                                
-                                const promptShort = item.prompt ? (item.prompt.length > 30 ? item.prompt.slice(0, 30) + '…' : item.prompt) : '';
-                                meta.textContent = `${item.seed ? 'Seed: ' + item.seed + ' • ' : ''}${promptShort}`;
-                                
-                                // Create download button
-                                const downloadBtn = document.createElement('button');
-                                downloadBtn.className = 'btn';
-                                downloadBtn.style.cssText = 'position:absolute; top:4px; right:4px; padding:4px 8px; font-size:10px; background:var(--btn-green); color:var(--green); border:1px solid var(--border-green); border-radius:4px; cursor:pointer;';
-                                downloadBtn.textContent = 'Download';
-                                downloadBtn.onclick = (e) => {
-                                    e.stopPropagation();
-                                    const link = document.createElement('a');
-                                    link.href = item.downloadUrl;
-                                    link.download = item.fileName;
-                                    link.click();
-                                };
-                                
-                                // Add elements to card
-                                card.appendChild(downloadBtn);
-                                card.appendChild(img);
-                                card.appendChild(meta);
-                                container.appendChild(card);
-                            });
+                            };
+                            img.onload = onload; 
+                            img.onerror = onload; 
                             
-                            // Add bulk download button
-                            const bulkCard = document.createElement('div');
-                            bulkCard.className = 'card';
-                            bulkCard.style.cssText = 'padding: 12px; text-align: center; grid-column: 1 / -1; background: var(--btn-purple); border-color: var(--border-purple);';
-                            bulkCard.innerHTML = `
-                                <div style="margin-bottom: 8px; font-weight: 500;">Bulk Download Options</div>
-                                <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                                    <button class="btn" onclick="downloadAllRailwayImages()" style="background: var(--btn-green); color: var(--green);">Download All (${data.length})</button>
-                                    <button class="btn" onclick="downloadRailwayZip()" style="background: var(--btn-purple); color: var(--purple);">Download ZIP</button>
-                                    <button class="btn" onclick="downloadRailwayGallery()" style="background: var(--btn-blue); color: white;">Download Gallery.html</button>
-                                </div>
-                            `;
-                            container.appendChild(bulkCard);
+                            const cap = document.createElement('div');
+                            cap.className = 'input-help';
+                            cap.style.marginTop = '6px';
+                            cap.style.fontSize = '11px';
+                            cap.textContent = caption;
                             
-                        } else {
-                            countEl.textContent = 'No images found on Railway. Generate some images first!';
-                            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found. Generate some images first!</div>';
+                            // Add elements to card
+                            card.appendChild(downloadBtn);
+                            card.appendChild(cap);
+                            container.appendChild(card);
+                        });
+                        
+                        // Start real-time refresh for Railway
+                        if (!scanInterval) {
+                            scanInterval = setInterval(() => {
+                                if (document.getElementById('folderStatus').style.display !== 'none') {
+                                    scanOutputFolder();
+                                }
+                            }, 5000); // Refresh every 5 seconds
                         }
-            } catch (error) {
-                        console.error('Railway gallery data error:', error);
-                        countEl.textContent = 'Error loading Railway images';
+                        
+                    } else {
+                        countEl.textContent = 'Error loading Railway gallery data';
                         container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Error loading images from Railway.</div>';
                     }
-                    return;
-                }
-                
-                console.log('Scanning folder:', outputDir);
-                const resp = await fetch(`${API_BASE}/list-images`, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ path: outputDir, limit: 24 }) 
-                });
-                console.log('Response status:', resp.status, resp.statusText);
-                
-                const ct = resp.headers.get('content-type') || '';
-                if (!ct.includes('application/json')) {
-                    const text = await resp.text();
-                    countEl.textContent = `Unable to scan. Server returned non-JSON response.`;
-                    console.error('Scan Folder non-JSON response:', text);
-                    return;
-                }
-                
-                const data = await resp.json();
-                if (data?.error) { 
-                    countEl.textContent = `Error: ${data.error}`; 
-                    console.error('Scan Folder error:', data.error);
-                    return; 
-                }
-                
-                console.log('Scan results:', data);
-                countEl.textContent = `Found ${data.count} image(s) in ${outputDir}`;
-                
-                if (data.count === 0) {
-                    container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found in this directory. Make sure the output directory matches where images are being saved.</div>';
-                    return;
-                }
-                
-                for (const item of data.items) {
-                    const card = document.createElement('div');
-                    card.className = 'card';
-                    card.style.padding = '8px';
-                    card.style.position = 'relative';
+                } else {
+                    // Local development: Use existing logic
+                    const resp = await fetch(`${API_BASE}/list-images`, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify({ path: outputDir, limit: 20 }) 
+                    });
                     
-                    let caption = item.name;
-                    if (item.meta && (item.meta.seed || item.meta.prompt)) {
-                        const promptTxt = String(item.meta.prompt || '');
-                        const promptShort = promptTxt ? (promptTxt.length > 30 ? promptTxt.slice(0, 30) + '…' : promptTxt) : '';
-                        caption = `${item.meta.seed ? 'Seed: ' + item.meta.seed + ' • ' : ''}${promptShort}`;
+                    console.log('Response status:', resp.status, resp.statusText);
+                    
+                    const ct = resp.headers.get('content-type') || '';
+                    if (!ct.includes('application/json')) {
+                        const text = await resp.text();
+                        countEl.textContent = `Unable to scan. Server returned non-JSON response.`;
+                        console.error('Scan Folder non-JSON response:', text);
+                        return;
                     }
                     
-                    const img = document.createElement('img');
-                    img.alt = item.name;
-                    img.style.cssText = 'width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;';
+                    const data = await resp.json();
+                    if (data?.error) { 
+                        countEl.textContent = `Error: ${data.error}`; 
+                        console.error('Scan Folder error:', data.error);
+                        return; 
+                    }
                     
-                    // Add click handler for image details
-                    img.onclick = () => showDetail(item);
+                    console.log('Scan results:', data);
+                    countEl.textContent = `Found ${data.count} image(s) in ${outputDir}`;
                     
-                    // Create download button for local files
-                    const downloadBtn = document.createElement('button');
-                    downloadBtn.className = 'btn';
-                    downloadBtn.style.cssText = 'position:absolute; top:4px; right:4px; padding:4px 8px; font-size:10px; background:var(--btn-green); color:var(--green); border:1px solid var(--border-green); border-radius:4px; cursor:pointer;';
-                    downloadBtn.textContent = 'Download';
-                    downloadBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        const link = document.createElement('a');
-                        link.href = item.dataUrl;
-                        link.download = item.name;
-                        link.click();
-                    };
+                    if (data.count === 0) {
+                        container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found in this directory. Make sure the output directory matches where images are being saved.</div>';
+                        return;
+                    }
                     
-                    // skeleton while loading
-                    const sk = document.createElement('div');
-                    sk.className = 'skeleton';
-                    sk.style.height = '120px';
-                    card.appendChild(sk);
+                    // Sort by savedAt (newest first) and limit to last 20
+                    const sortedItems = data.items
+                        .sort((a, b) => new Date(b.meta?.savedAt || 0) - new Date(a.meta?.savedAt || 0))
+                        .slice(0, 20);
                     
-                    const onload = () => { 
-                        if (card.contains(sk)) {
-                            card.replaceChild(img, sk); 
+                    // Add bulk download controls
+                    const bulkControls = document.createElement('div');
+                    bulkControls.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center;';
+                    
+                    const selectAllBtn = document.createElement('button');
+                    selectAllBtn.className = 'btn';
+                    selectAllBtn.textContent = 'Select All';
+                    selectAllBtn.onclick = () => selectAllPhotos();
+                    
+                    const downloadSelectedBtn = document.createElement('button');
+                    downloadSelectedBtn.className = 'btn btn-purple';
+                    downloadSelectedBtn.textContent = 'Download Selected';
+                    downloadSelectedBtn.onclick = () => downloadSelectedPhotos();
+                    
+                    const downloadAllBtn = document.createElement('button');
+                    downloadAllBtn.className = 'btn btn-purple';
+                    downloadAllBtn.textContent = 'Download All';
+                    downloadAllBtn.onclick = () => downloadAllPhotos(sortedItems);
+                    
+                    const clearSelectionBtn = document.createElement('button');
+                    clearSelectionBtn.className = 'btn btn-red';
+                    clearSelectionBtn.textContent = 'Clear Selection';
+                    clearSelectionBtn.onclick = () => clearPhotoSelection();
+                    
+                    bulkControls.appendChild(selectAllBtn);
+                    bulkControls.appendChild(downloadSelectedBtn);
+                    bulkControls.appendChild(downloadAllBtn);
+                    bulkControls.appendChild(clearSelectionBtn);
+                    
+                    container.appendChild(bulkControls);
+                    
+                    // Create selection info
+                    const selectionInfo = document.createElement('div');
+                    selectionInfo.id = 'photoSelectionInfo';
+                    selectionInfo.style.cssText = 'text-align: center; margin-bottom: 15px; padding: 10px; background: var(--card); border-radius: 8px; font-size: 14px; color: var(--muted);';
+                    selectionInfo.textContent = 'No photos selected';
+                    container.appendChild(selectionInfo);
+                    
+                    // Store photos data globally for selection
+                    window.currentPhotosData = sortedItems;
+                    window.selectedPhotoIndices = new Set();
+                    
+                    sortedItems.forEach((item, index) => {
+                        const card = document.createElement('div');
+                        card.className = 'card photo-card';
+                        card.style.padding = '8px';
+                        card.style.position = 'relative';
+                        card.dataset.index = index;
+                        card.onclick = () => togglePhotoSelection(index);
+                        
+                        let caption = item.name;
+                        if (item.meta && (item.meta.seed || item.meta.prompt)) {
+                            const promptTxt = String(item.meta.prompt || '');
+                            const promptShort = promptTxt ? (promptTxt.length > 30 ? promptTxt.slice(0, 30) + '…' : promptTxt) : '';
+                            caption = `${item.meta.seed ? 'Seed: ' + item.meta.seed + ' • ' : ''}${promptShort}`;
                         }
-                    };
-                    img.onload = onload; 
-                    img.onerror = onload; 
-                    img.src = item.dataUrl;
+                        
+                        const img = document.createElement('img');
+                        img.alt = item.name;
+                        img.style.cssText = 'width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;';
+                        
+                        // Add click handler for image details
+                        img.onclick = () => showDetail(item);
+                        
+                        // Create download button for local files
+                        const downloadBtn = document.createElement('button');
+                        downloadBtn.className = 'btn';
+                        downloadBtn.style.cssText = 'position:absolute; top:4px; right:4px; padding:4px 8px; font-size:10px; background:var(--btn-green); color:white; border:1px solid var(--border-green); border-radius:4px; cursor:pointer;';
+                        downloadBtn.textContent = 'Download';
+                        downloadBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            const link = document.createElement('a');
+                            link.href = item.dataUrl;
+                            link.download = item.name;
+                            link.click();
+                        };
+                        
+                        // skeleton while loading
+                        const sk = document.createElement('div');
+                        sk.className = 'skeleton';
+                        sk.style.height = '120px';
+                        card.appendChild(sk);
+                        
+                        const onload = () => { 
+                            if (card.contains(sk)) {
+                                card.replaceChild(img, sk); 
+                            }
+                        };
+                        img.onload = onload; 
+                        img.onerror = onload; 
+                        img.src = item.dataUrl;
+                        
+                        const cap = document.createElement('div');
+                        cap.className = 'input-help';
+                        cap.style.marginTop = '6px';
+                        cap.style.fontSize = '11px';
+                        cap.textContent = caption;
+                        
+                        // Add elements to card
+                        card.appendChild(downloadBtn);
+                        card.appendChild(cap);
+                        container.appendChild(card);
+                    });
                     
-                    const cap = document.createElement('div');
-                    cap.className = 'input-help';
-                    cap.style.marginTop = '6px';
-                    cap.style.fontSize = '11px';
-                    cap.textContent = caption;
-                    
-                    // Add elements to card
-                    card.appendChild(downloadBtn);
-                    card.appendChild(cap);
-                    container.appendChild(card);
+                    // Start real-time refresh for local development
+                    if (!scanInterval) {
+                        scanInterval = setInterval(() => {
+                            if (document.getElementById('folderStatus').style.display !== 'none' && document.getElementById('outputDir').value) {
+                                scanOutputFolder();
+                            }
+                        }, 5000); // Refresh every 5 seconds
+                    }
                 }
-                // if an interval is not set, start real-time refresh
-                if (!scanInterval) {
-                    scanInterval = setInterval(() => {
-                        // Only refresh if the folder box is visible and an outputDir is still set
-                        if (document.getElementById('folderStatus').style.display !== 'none' && document.getElementById('outputDir').value) {
-                            // re-run scan without resetting visibility
-                            (async () => {
-                                try {
-                                    const resp2 = await fetch(`${API_BASE}/list-images`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: document.getElementById('outputDir').value, limit: 24 }) });
-                                    const data2 = await resp2.json();
-                                    if (!data2 || data2.error) return;
-                                    container.innerHTML = '';
-                                    countEl.textContent = `Found ${data2.count} image(s)`;
-                                    for (const item2 of data2.items) {
-                                        const card2 = document.createElement('div');
-                                        card2.className = 'card';
-                                        card2.style.padding = '8px';
-                                        let cap2 = item2.name;
-                                        if (item2.meta && (item2.meta.seed || item2.meta.prompt)) {
-                                            const p2 = String(item2.meta.prompt || '');
-                                            const p2s = p2 ? (p2.length > 50 ? p2.slice(0, 50) + '…' : p2) : '';
-                                            cap2 = `${item2.meta.seed ? 'Seed: ' + item2.meta.seed + ' • ' : ''}${p2s}`;
-                                        }
-                                        card2.innerHTML = `<img src="${item2.dataUrl}" alt="${item2.name}" style="width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;"/><div class="input-help" style="margin-top:6px;">${cap2}</div>`;
-                                        const img2 = card2.querySelector('img');
-                                        if (img2) {
-                                            img2.onclick = () => showDetail(item2);
-                                        }
-                                        container.appendChild(card2);
-                                    }
-                                } catch {}
-                            })();
-                        }
-                    }, 3000);
-                }
-            } catch (e) {
-                countEl.textContent = `Unable to scan folder: ${e.message || e}`;
-                console.error('Scan Folder error:', e);
+            } catch (error) {
+                console.error('Scan folder error:', error);
+                countEl.textContent = `Error: ${error.message}`;
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Error scanning folder. Check console for details.</div>';
             }
         }
 
@@ -1318,53 +1401,222 @@
                 return;
             }
             
+            // Add bulk download controls
+            const bulkControls = document.createElement('div');
+            bulkControls.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center;';
+            
+            const selectAllBtn = document.createElement('button');
+            selectAllBtn.className = 'btn';
+            selectAllBtn.textContent = 'Select All';
+            selectAllBtn.onclick = () => selectAllPhotos();
+            
+            const downloadSelectedBtn = document.createElement('button');
+            downloadSelectedBtn.className = 'btn btn-purple';
+            downloadSelectedBtn.textContent = 'Download Selected';
+            downloadSelectedBtn.onclick = () => downloadSelectedPhotos();
+            
+            const downloadAllBtn = document.createElement('button');
+            downloadAllBtn.className = 'btn btn-purple';
+            downloadAllBtn.textContent = 'Download All';
+            downloadAllBtn.onclick = () => downloadAllPhotos(data);
+            
+            const clearSelectionBtn = document.createElement('button');
+            clearSelectionBtn.className = 'btn btn-red';
+            clearSelectionBtn.textContent = 'Clear Selection';
+            clearSelectionBtn.onclick = () => clearPhotoSelection();
+            
+            bulkControls.appendChild(selectAllBtn);
+            bulkControls.appendChild(downloadSelectedBtn);
+            bulkControls.appendChild(downloadAllBtn);
+            bulkControls.appendChild(clearSelectionBtn);
+            
+            container.appendChild(bulkControls);
+            
+            // Create selection info
+            const selectionInfo = document.createElement('div');
+            selectionInfo.id = 'photoSelectionInfo';
+            selectionInfo.style.cssText = 'text-align: center; margin-bottom: 15px; padding: 10px; background: var(--card); border-radius: 8px; font-size: 14px; color: var(--muted);';
+            selectionInfo.textContent = 'No photos selected';
+            container.appendChild(selectionInfo);
+            
+            // Store photos data globally for selection
+            window.currentPhotosData = data;
+            window.selectedPhotoIndices = new Set();
+            
             data.forEach((item, index) => {
                 const card = document.createElement('div');
-                card.className = 'card';
+                card.className = 'card photo-card';
                 card.style.padding = '8px';
                 card.style.position = 'relative';
+                card.dataset.index = index;
+                card.onclick = () => togglePhotoSelection(index);
                 
-                // Create image element
+                let caption = item.fileName || item.name;
+                if (item.prompt) {
+                    const promptTxt = String(item.prompt);
+                    const promptShort = promptTxt ? (promptTxt.length > 30 ? promptTxt.slice(0, 30) + '…' : promptTxt) : '';
+                    caption = `${item.seed ? 'Seed: ' + item.seed + ' • ' : ''}${promptShort}`;
+                }
+                
                 const img = document.createElement('img');
-                img.alt = item.fileName;
+                img.alt = item.fileName || item.name;
                 img.style.cssText = 'width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;';
                 
-                // Set image source from base64 data
+                // Set image source
                 if (item.encodedImage) {
                     img.src = `data:image/png;base64,${item.encodedImage}`;
+                } else if (item.dataUrl) {
+                    img.src = item.dataUrl;
                 }
                 
                 // Add click handler for image details
-                img.onclick = () => showDetail(item);
-                
-                // Create metadata
-                const meta = document.createElement('div');
-                meta.className = 'input-help';
-                meta.style.marginTop = '6px';
-                meta.style.fontSize = '11px';
-                
-                const promptShort = item.prompt ? (item.prompt.length > 30 ? item.prompt.slice(0, 30) + '…' : item.prompt) : '';
-                meta.textContent = `${item.seed ? 'Seed: ' + item.seed + ' • ' : ''}${promptShort}`;
+                img.onclick = (e) => {
+                    e.stopPropagation();
+                    showDetail(item);
+                };
                 
                 // Create download button
                 const downloadBtn = document.createElement('button');
                 downloadBtn.className = 'btn';
-                downloadBtn.style.cssText = 'position:absolute; top:4px; right:4px; padding:4px 8px; font-size:10px; background:var(--btn-green); color:var(--green); border:1px solid var(--border-green); border-radius:4px; cursor:pointer;';
+                downloadBtn.style.cssText = 'position:absolute; top:4px; right:4px; padding:4px 8px; font-size:10px; background:var(--btn-green); color:white; border:1px solid var(--border-green); border-radius:4px; cursor:pointer;';
                 downloadBtn.textContent = 'Download';
                 downloadBtn.onclick = (e) => {
                     e.stopPropagation();
                     const link = document.createElement('a');
-                    link.href = item.downloadUrl;
-                    link.download = item.fileName;
+                    link.href = item.downloadUrl || item.dataUrl;
+                    link.download = item.fileName || item.name;
                     link.click();
                 };
                 
+                // skeleton while loading
+                const sk = document.createElement('div');
+                sk.className = 'skeleton';
+                sk.style.height = '120px';
+                card.appendChild(sk);
+                
+                const onload = () => { 
+                    if (card.contains(sk)) {
+                        card.replaceChild(img, sk); 
+                    }
+                };
+                img.onload = onload; 
+                img.onerror = onload; 
+                
+                const cap = document.createElement('div');
+                cap.className = 'input-help';
+                cap.style.marginTop = '6px';
+                cap.style.fontSize = '11px';
+                cap.textContent = caption;
+                
                 // Add elements to card
                 card.appendChild(downloadBtn);
-                card.appendChild(img);
-                card.appendChild(meta);
+                card.appendChild(cap);
                 container.appendChild(card);
             });
+        }
+        
+        function togglePhotoSelection(index) {
+            if (window.selectedPhotoIndices.has(index)) {
+                window.selectedPhotoIndices.delete(index);
+            } else {
+                window.selectedPhotoIndices.add(index);
+            }
+            updatePhotoSelectionDisplay();
+            updatePhotoSelectionInfo();
+        }
+        
+        function updatePhotoSelectionDisplay() {
+            const cards = document.querySelectorAll('.photo-card');
+            cards.forEach((card, index) => {
+                if (window.selectedPhotoIndices.has(index)) {
+                    card.style.borderColor = 'var(--btn-purple)';
+                    card.style.boxShadow = '0 0 0 2px var(--btn-purple)';
+                } else {
+                    card.style.borderColor = 'var(--border)';
+                    card.style.boxShadow = 'none';
+                }
+            });
+        }
+        
+        function updatePhotoSelectionInfo() {
+            const info = document.getElementById('photoSelectionInfo');
+            if (!info) return;
+            
+            if (window.selectedPhotoIndices.size === 0) {
+                info.textContent = 'No photos selected';
+            } else if (window.selectedPhotoIndices.size === window.currentPhotosData.length) {
+                info.textContent = `All ${window.currentPhotosData.length} photos selected`;
+            } else {
+                info.textContent = `${window.selectedPhotoIndices.size} of ${window.currentPhotosData.length} photos selected`;
+            }
+        }
+        
+        function selectAllPhotos() {
+            window.selectedPhotoIndices.clear();
+            for (let i = 0; i < window.currentPhotosData.length; i++) {
+                window.selectedPhotoIndices.add(i);
+            }
+            updatePhotoSelectionDisplay();
+            updatePhotoSelectionInfo();
+        }
+        
+        function clearPhotoSelection() {
+            window.selectedPhotoIndices.clear();
+            updatePhotoSelectionDisplay();
+            updatePhotoSelectionInfo();
+        }
+        
+        async function downloadSelectedPhotos() {
+            if (window.selectedPhotoIndices.size === 0) {
+                alert('Please select photos to download');
+                return;
+            }
+            
+            const selectedPhotos = Array.from(window.selectedPhotoIndices).map(index => window.currentPhotosData[index]);
+            await downloadPhotosZip(selectedPhotos, 'selected-photos');
+        }
+        
+        async function downloadAllPhotos(data) {
+            if (data.length === 0) {
+                alert('No photos to download');
+                return;
+            }
+            
+            await downloadPhotosZip(data, 'all-photos');
+        }
+        
+        async function downloadPhotosZip(photos, filename) {
+            try {
+                const response = await fetch('/bulk-download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        images: photos.map(photo => ({
+                            fileName: photo.fileName || photo.name,
+                            downloadUrl: photo.downloadUrl || photo.dataUrl,
+                            encodedImage: photo.encodedImage
+                        }))
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Download failed');
+                }
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+            } catch (error) {
+                console.error('Download error:', error);
+                alert('Error downloading photos');
+            }
         }
 
         // Detail modal controls
