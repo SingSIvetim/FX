@@ -41,6 +41,26 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Railway gallery endpoint
+app.get('/railway-gallery', (req, res) => {
+    console.log('🖼️ Railway gallery requested');
+    try {
+        const tempDir = path.join(process.cwd(), 'temp_images');
+        const galleryPath = path.join(tempDir, 'gallery.html');
+        
+        if (!fs.existsSync(galleryPath)) {
+            return res.status(404).json({ error: 'No gallery found. Generate some images first!' });
+        }
+        
+        const galleryContent = fs.readFileSync(galleryPath, 'utf-8');
+        res.setHeader('Content-Type', 'text/html');
+        res.send(galleryContent);
+    } catch (error) {
+        console.error('[DEBUG] Railway gallery error:', error);
+        res.status(500).json({ error: 'Failed to load gallery' });
+    }
+});
+
 // Download image endpoint
 app.get('/download/:path(*)', (req, res) => {
     console.log('💾 Download requested for:', req.params.path);
@@ -522,6 +542,9 @@ app.post('/generate', async (req, res) => {
     console.log('🖼️ Generate requested');
     const { prompt, folderName, authToken, authFile, generationCount, imageCount, aspectRatio, outputDir, proxy, seed, model, noFallback } = req.body;
     
+    // Check if we're on Railway (ephemeral file system)
+    const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
+    
     try {
         // Get auth token from file or direct input
         let finalAuthToken;
@@ -533,8 +556,8 @@ app.post('/generate', async (req, res) => {
             throw new Error('No auth token or auth file provided');
         }
 
-        // Create output directory if it doesn't exist
-        if (!fs.existsSync(outputDir)) {
+        // Create output directory if it doesn't exist (for local development)
+        if (!isRailway && !fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
         }
 
@@ -608,28 +631,28 @@ app.post('/generate', async (req, res) => {
             // Save images and metadata
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             
-            // Create folder-specific output directory
+            // Create folder-specific output directory (for local development)
             const finalOutputDir = folderName && folderName.trim() !== '' 
                 ? path.join(outputDir, folderName.trim()) 
                 : outputDir;
 
             console.log('[DEBUG] Final output directory:', finalOutputDir);
-            console.log('[DEBUG] Directory exists before creation:', fs.existsSync(finalOutputDir));
-
-            if (!fs.existsSync(finalOutputDir)) {
-                try {
-                    fs.mkdirSync(finalOutputDir, { recursive: true });
-                    console.log('[DEBUG] Directory created successfully');
-                } catch (error) {
-                    console.error('[DEBUG] Failed to create directory:', error);
-                    res.write(JSON.stringify({ type: 'error', data: `Failed to create output directory: ${error.message}` }) + '\n');
-                    res.end();
-                    return;
+            
+            if (!isRailway) {
+                console.log('[DEBUG] Directory exists before creation:', fs.existsSync(finalOutputDir));
+                if (!fs.existsSync(finalOutputDir)) {
+                    try {
+                        fs.mkdirSync(finalOutputDir, { recursive: true });
+                        console.log('[DEBUG] Directory created successfully');
+                    } catch (error) {
+                        console.error('[DEBUG] Failed to create directory:', error);
+                        res.write(JSON.stringify({ type: 'error', data: `Failed to create output directory: ${error.message}` }) + '\n');
+                        res.end();
+                        return;
+                    }
                 }
+                console.log('[DEBUG] Directory exists after creation:', fs.existsSync(finalOutputDir));
             }
-
-            console.log('[DEBUG] Directory exists after creation:', fs.existsSync(finalOutputDir));
-            console.log('[DEBUG] Directory is writable:', fs.accessSync ? 'checking...' : 'unknown');
 
             let imageNumber = 1;
             const newEntries = [];
@@ -643,41 +666,77 @@ app.post('/generate', async (req, res) => {
                         const imageName = `${timestamp}-generation-${gen + 1}-${currentNum}-${aspectRatio}.png`;
                         imageNumber++;
                         
-                        console.log('[DEBUG] Attempting to save image:', imageName);
+                        console.log('[DEBUG] Processing image:', imageName);
                         console.log('[DEBUG] Image data length:', image.encodedImage?.length || 0);
                         
                         try {
-                            if (saveImage(imageName, image.encodedImage, finalOutputDir)) {
-                                console.log('[DEBUG] Image saved successfully:', imageName);
-                                const meta = {
-                                    fileName: imageName,
-                                    prompt: prompt,
-                                    seed: seed,
-                                    aspectRatio: aspectRatio,
-                                    generationNumber: gen + 1,
-                                    imageNumber: currentNum,
-                                    savedAt: new Date().toISOString(),
-                                    mediaGenerationId: image.mediaGenerationId || null,
-                                    model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)'
-                                };
-                                newEntries.push(meta);
+                            if (isRailway) {
+                                // On Railway: Save temporarily and provide download link
+                                const tempDir = path.join(process.cwd(), 'temp_images');
+                                if (!fs.existsSync(tempDir)) {
+                                    fs.mkdirSync(tempDir, { recursive: true });
+                                }
                                 
-                                res.write(JSON.stringify({ 
-                                    type: 'progress', 
-                                    data: `Saved image ${currentNum}: ${imageName}` 
-                                }) + '\n');
+                                const tempPath = path.join(tempDir, imageName);
+                                if (saveImage(imageName, image.encodedImage, tempDir)) {
+                                    console.log('[DEBUG] Image saved temporarily for download:', imageName);
+                                    
+                                    const downloadUrl = `/download/${encodeURIComponent(tempPath)}`;
+                                    const meta = {
+                                        fileName: imageName,
+                                        prompt: prompt,
+                                        seed: seed,
+                                        aspectRatio: aspectRatio,
+                                        generationNumber: gen + 1,
+                                        imageNumber: currentNum,
+                                        savedAt: new Date().toISOString(),
+                                        mediaGenerationId: image.mediaGenerationId || null,
+                                        model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)',
+                                        downloadUrl: downloadUrl,
+                                        isRailway: true
+                                    };
+                                    newEntries.push(meta);
+                                    
+                                    res.write(JSON.stringify({ 
+                                        type: 'progress', 
+                                        data: `Generated image ${currentNum}: ${imageName} (Click to download)` 
+                                    }) + '\n');
+                                }
                             } else {
-                                console.error('[DEBUG] Failed to save image:', imageName);
-                                res.write(JSON.stringify({ 
-                                    type: 'error', 
-                                    data: `Failed to save image ${currentNum}: ${imageName}` 
-                                }) + '\n');
+                                // Local development: Save to file system
+                                if (saveImage(imageName, image.encodedImage, finalOutputDir)) {
+                                    console.log('[DEBUG] Image saved successfully:', imageName);
+                                    const meta = {
+                                        fileName: imageName,
+                                        prompt: prompt,
+                                        seed: seed,
+                                        aspectRatio: aspectRatio,
+                                        generationNumber: gen + 1,
+                                        imageNumber: currentNum,
+                                        savedAt: new Date().toISOString(),
+                                        mediaGenerationId: image.mediaGenerationId || null,
+                                        model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)',
+                                        isRailway: false
+                                    };
+                                    newEntries.push(meta);
+                                    
+                                    res.write(JSON.stringify({ 
+                                        type: 'progress', 
+                                        data: `Saved image ${currentNum}: ${imageName}` 
+                                    }) + '\n');
+                                } else {
+                                    console.error('[DEBUG] Failed to save image:', imageName);
+                                    res.write(JSON.stringify({ 
+                                        type: 'error', 
+                                        data: `Failed to save image ${currentNum}: ${imageName}` 
+                                    }) + '\n');
+                                }
                             }
                         } catch (error) {
-                            console.error('[DEBUG] Error saving image:', error);
+                            console.error('[DEBUG] Error processing image:', error);
                             res.write(JSON.stringify({ 
                                 type: 'error', 
-                                data: `Error saving image ${currentNum}: ${error.message}` 
+                                data: `Error processing image ${currentNum}: ${error.message}` 
                             }) + '\n');
                         }
                     }
@@ -689,86 +748,145 @@ app.post('/generate', async (req, res) => {
 
             // Update gallery.html with new entries
             if (newEntries.length > 0) {
-                const galleryPath = path.join(finalOutputDir, 'gallery.html');
-                let data = [];
-                
-                if (fs.existsSync(galleryPath)) {
-                    try {
-                        const content = fs.readFileSync(galleryPath, 'utf-8');
-                        const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
-                        if (match) {
-                            data = JSON.parse(match[1]);
+                if (isRailway) {
+                    // On Railway: Create temporary gallery
+                    const tempDir = path.join(process.cwd(), 'temp_images');
+                    const galleryPath = path.join(tempDir, 'gallery.html');
+                    let data = [];
+                    
+                    if (fs.existsSync(galleryPath)) {
+                        try {
+                            const content = fs.readFileSync(galleryPath, 'utf-8');
+                            const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
+                            if (match) {
+                                data = JSON.parse(match[1]);
+                            }
+                        } catch (error) {
+                            console.error('[DEBUG] Error reading existing gallery:', error);
                         }
-                    } catch (error) {
-                        console.log('Error reading existing gallery:', error);
                     }
+                    
+                    data = [...data, ...newEntries];
+                    
+                    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageFX Gallery - Railway</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: #2a2a2a; border-radius: 10px; padding: 15px; border: 1px solid #333; }
+        .card img { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; }
+        .meta { font-size: 12px; color: #ccc; margin-bottom: 10px; }
+        .download-btn { background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; margin-top: 10px; }
+        .download-btn:hover { background: #45a049; }
+        .railway-note { background: #ff9800; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ImageFX Gallery</h1>
+        <div class="railway-note">⚠️ Railway Environment: Images are temporary. Download them before they expire!</div>
+    </div>
+    <div class="grid">
+        ${data.map(item => `
+            <div class="card">
+                <img src="data:image/png;base64,${item.encodedImage || ''}" alt="${item.fileName}" onerror="this.style.display='none'">
+                <div class="meta">
+                    <strong>${item.fileName}</strong><br>
+                    Prompt: ${item.prompt}<br>
+                    Seed: ${item.seed || 'Random'}<br>
+                    Model: ${item.model}<br>
+                    Generated: ${new Date(item.savedAt).toLocaleString()}
+                </div>
+                <a href="${item.downloadUrl}" class="download-btn" download="${item.fileName}">Download Image</a>
+            </div>
+        `).join('')}
+    </div>
+    <script id="gallery-data" type="application/json">${JSON.stringify(data)}</script>
+</body>
+</html>`;
+                    
+                    fs.writeFileSync(galleryPath, html, { encoding: 'utf-8' });
+                    res.write(JSON.stringify({ type: 'progress', data: 'Updated gallery.html (Railway)' }) + '\n');
+                } else {
+                    // Local development: Update existing gallery
+                    const galleryPath = path.join(finalOutputDir, 'gallery.html');
+                    let data = [];
+                    
+                    if (fs.existsSync(galleryPath)) {
+                        try {
+                            const content = fs.readFileSync(galleryPath, 'utf-8');
+                            const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
+                            if (match) {
+                                data = JSON.parse(match[1]);
+                            }
+                        } catch (error) {
+                            console.error('[DEBUG] Error reading existing gallery:', error);
+                        }
+                    }
+                    
+                    data = [...data, ...newEntries];
+                    
+                    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageFX Gallery</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: #2a2a2a; border-radius: 10px; padding: 15px; border: 1px solid #333; }
+        .card img { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; }
+        .meta { font-size: 12px; color: #ccc; margin-bottom: 10px; }
+        .download-btn { background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; margin-top: 10px; }
+        .download-btn:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ImageFX Gallery</h1>
+    </div>
+    <div class="grid">
+        ${data.map(item => `
+            <div class="card">
+                <img src="data:image/png;base64,${item.encodedImage || ''}" alt="${item.fileName}" onerror="this.style.display='none'">
+                <div class="meta">
+                    <strong>${item.fileName}</strong><br>
+                    Prompt: ${item.prompt}<br>
+                    Seed: ${item.seed || 'Random'}<br>
+                    Model: ${item.model}<br>
+                    Generated: ${new Date(item.savedAt).toLocaleString()}
+                </div>
+                <a href="/download/${encodeURIComponent(path.join(finalOutputDir, item.fileName))}" class="download-btn" download="${item.fileName}">Download Image</a>
+            </div>
+        `).join('')}
+    </div>
+    <script id="gallery-data" type="application/json">${JSON.stringify(data)}</script>
+</body>
+</html>`;
+                    
+                    fs.writeFileSync(galleryPath, html, { encoding: 'utf-8' });
+                    res.write(JSON.stringify({ type: 'progress', data: 'Updated gallery.html' }) + '\n');
                 }
-                
-                // Merge by fileName (most recent wins)
-                const map = new Map();
-                for (const item of data) map.set(item.fileName, item);
-                for (const item of newEntries) map.set(item.fileName, item);
-                const merged = Array.from(map.values()).sort((a, b) => (a.savedAt > b.savedAt ? -1 : 1));
-
-                const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ImageFX Gallery</title>
-<style>
-:root{--bg:#0b0f19;--card:#111827;--text:#e5e7eb;--muted:#94a3b8;--border:#1f2937}
-body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
-.app{max-width:1200px;margin:0 auto;padding:20px}
-h1{margin:0 0 10px;font-size:20px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px}
-.thumb{width:100%;height:180px;object-fit:cover;border-radius:8px;border:1px solid var(--border);background:#0b1220}
-.meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
-.count{color:var(--muted);margin-bottom:10px}
-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}
-td{border-top:1px solid var(--border);padding:4px 6px;vertical-align:top}
-</style>
-</head><body><div class="app">
-<h1>ImageFX Gallery</h1>
-<div class="count" id="count"></div>
-<div class="grid" id="grid"></div>
-<script id="gallery-data" type="application/json">${JSON.stringify(merged)}</script>
-<script>
-const data = JSON.parse(document.getElementById('gallery-data').textContent || '[]');
-document.getElementById('count').textContent = 'Total images: ' + data.length;
-const grid = document.getElementById('grid');
-for (const item of data){
-  const card = document.createElement('div');
-  card.className='card';
-  card.innerHTML = '\\n'
-    + '    <img class="thumb" src="' + item.fileName + '" alt="' + item.fileName + '">\\n'
-    + '    <div class="meta">Seed: ' + (item.seed ?? '') + '</div>\\n'
-    + '    <table>\\n'
-    + '      <tr><td>Prompt</td><td>' + String(item.prompt||'').replace(/</g,'&lt;') + '</td></tr>\\n'
-    + '      <tr><td>Saved</td><td>' + item.savedAt + '</td></tr>\\n'
-    + '      <tr><td>Aspect Ratio</td><td>' + item.aspectRatio + '</td></tr>\\n'
-    + '      <tr><td>Generation</td><td>' + item.generationNumber + '</td></tr>\\n'
-    + '      <tr><td>Image #</td><td>' + item.imageNumber + '</td></tr>\\n'
-    + '      <tr><td>Media ID</td><td>' + (item.mediaGenerationId||'') + '</td></tr>\\n'
-    + '    </table>';
-  grid.appendChild(card);
-}
-</script>
-</div></body></html>`;
-                
-                fs.writeFileSync(galleryPath, html, { encoding: 'utf-8' });
-                res.write(JSON.stringify({ type: 'progress', data: 'Updated gallery.html' }) + '\n');
             }
         }
 
         res.write(JSON.stringify({ type: 'complete', data: 'All generations completed successfully!' }) + '\n');
         res.end();
-        
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        console.error('Generation error:', error);
-        res.write(JSON.stringify({ type: 'error', data: errorMessage }) + '\n');
-        res.end();
-    }
-});
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+            console.error('Generation error:', error);
+            res.write(JSON.stringify({ type: 'error', data: errorMessage }) + '\n');
+            res.end();
+        }
+    });
 
 // List images endpoint
 app.post('/list-images', async (req, res) => {

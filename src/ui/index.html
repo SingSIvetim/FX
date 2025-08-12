@@ -890,12 +890,21 @@
         async function openOutputFolder() {
             const outputDir = document.getElementById('outputDir').value;
             if (!outputDir) { 
-                alert('Please set an output directory first.'); 
                 return; 
             }
             
             try {
                 console.log('Opening folder:', outputDir);
+                
+                // Check if we're on Railway
+                const isRailway = location.hostname.includes('railway.app');
+                
+                if (isRailway) {
+                    // On Railway: Open the Railway gallery directly
+                    window.open('/railway-gallery', '_blank');
+                    return;
+                }
+                
                 const resp = await fetch(`${API_BASE}/open-folder`, { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' }, 
@@ -904,31 +913,24 @@
                 
                 const ct = resp.headers.get('content-type') || '';
                 if (!ct.includes('application/json')) {
-                    const text = await resp.text();
-                    alert(`Open folder failed. Is the UI server running? Details: ${text.slice(0, 200)}...`);
                     return;
                 }
                 
                 const data = await resp.json();
                 if (data?.error) {
-                    alert(`Failed to open folder: ${data.error}`);
                     return;
                 }
                 
-                // Show folder information
+                // Show folder information silently
                 console.log('Folder opened successfully:', data);
-                alert(`Folder opened successfully!\n\nPath: ${data.path}\nFiles found: ${data.fileCount}\n\n${data.note || ''}`);
                 
-                // If there's a gallery, offer to open it
+                // If there's a gallery, open it automatically
                 if (data.hasGallery && data.galleryUrl) {
-                    if (confirm('A gallery.html file was found. Would you like to view it?')) {
-                        window.open(data.galleryUrl, '_blank');
-                    }
+                    window.open(data.galleryUrl, '_blank');
                 }
                 
             } catch (e) {
                 console.error('Open folder error:', e);
-                alert('Failed to open folder: ' + e.message);
             }
         }
 
@@ -937,9 +939,11 @@
             try {
                 const outputDir = document.getElementById('outputDir').value;
                 if (!outputDir) { 
-                    alert('Please set an output directory first.'); 
                     return; 
                 }
+                
+                // Check if we're on Railway
+                const isRailway = location.hostname.includes('railway.app');
                 
                 const container = document.getElementById('folderGrid');
                 const countEl = document.getElementById('folderCount');
@@ -947,6 +951,13 @@
                 container.innerHTML = '';
                 countEl.textContent = 'Scanning...';
                 box.style.display = 'block';
+                
+                if (isRailway) {
+                    // On Railway: Show Railway-specific message
+                    countEl.textContent = 'Railway Environment: Use "Open Folder" to view generated images with download links.';
+                    container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">On Railway, images are temporarily stored. Click "Open Folder" to view the gallery with download buttons.</div>';
+                    return;
+                }
                 
                 console.log('Scanning folder:', outputDir);
                 const resp = await fetch(`${API_BASE}/list-images`, { 
