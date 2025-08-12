@@ -41,6 +41,87 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Token validation endpoint
+app.post('/validate-token', async (req, res) => {
+    console.log('🔐 Token validation requested');
+    try {
+        const { authToken } = req.body;
+        
+        if (!authToken) {
+            return res.status(400).json({ 
+                valid: false, 
+                error: 'No auth token provided',
+                type: 'none'
+            });
+        }
+        
+        const tokenType = authToken.startsWith('AIza') ? 'API_KEY' : 'OAUTH_TOKEN';
+        console.log('[DEBUG] Token type:', tokenType);
+        console.log('[DEBUG] Token length:', authToken.length);
+        console.log('[DEBUG] Token preview:', authToken.substring(0, 20) + '...');
+        
+        // Test the token with a simple API call
+        let testResponse;
+        try {
+            if (tokenType === 'API_KEY') {
+                testResponse = await makeRequest({
+                    reqURL: 'https://generativelanguage.googleapis.com/v1beta/models',
+                    authorization: authToken,
+                    method: 'GET'
+                });
+            } else {
+                testResponse = await makeRequest({
+                    reqURL: 'https://aisandbox-pa.googleapis.com/v1:runImageFx',
+                    authorization: authToken,
+                    method: 'POST',
+                    body: JSON.stringify({
+                        prompt: 'test',
+                        imageCount: 1,
+                        aspectRatio: 'IMAGE_ASPECT_RATIO_SQUARE',
+                        modelNameType: 'IMAGEN_3_1',
+                        tool: 'IMAGE_FX'
+                    })
+                });
+            }
+            
+            console.log('[DEBUG] Token test response:', {
+                hasResponse: !!testResponse,
+                hasError: !!(testResponse && testResponse.error),
+                errorCode: testResponse?.error?.code,
+                errorMessage: testResponse?.error?.message
+            });
+            
+            if (testResponse && testResponse.error) {
+                return res.json({
+                    valid: false,
+                    error: testResponse.error.message,
+                    code: testResponse.error.code,
+                    type: tokenType
+                });
+            } else {
+                return res.json({
+                    valid: true,
+                    type: tokenType,
+                    message: 'Token is valid'
+                });
+            }
+        } catch (error) {
+            console.error('[DEBUG] Token validation error:', error);
+            return res.json({
+                valid: false,
+                error: error.message,
+                type: tokenType
+            });
+        }
+    } catch (error) {
+        console.error('[DEBUG] Token validation endpoint error:', error);
+        res.status(500).json({ 
+            valid: false, 
+            error: error.message 
+        });
+    }
+});
+
 // Test file writing endpoint
 app.post('/test-file-write', async (req, res) => {
     console.log('🧪 Test file write requested');
@@ -280,7 +361,10 @@ const generateImage = async (params) => {
             }
         };
     } else {
-        // OAuth token - try Google Generative AI API with OAuth
+        // OAuth token - try multiple endpoints and formats
+        console.log('[DEBUG] Using OAuth token, trying multiple API endpoints...');
+        
+        // Try Google Generative AI API first with OAuth
         apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3:generateContent';
         requestBody = {
             contents: [{
@@ -295,6 +379,9 @@ const generateImage = async (params) => {
                 maxOutputTokens: 2048,
             }
         };
+        
+        // If this fails, we'll try the original ImageFX API as fallback
+        console.log('[DEBUG] Will try ImageFX API as fallback if this fails');
     }
 
     console.log('[DEBUG] Using API URL:', apiUrl);
@@ -318,6 +405,45 @@ const generateImage = async (params) => {
 
         if (response && response.error) {
             console.error('[DEBUG] API Error:', response.error);
+            
+            // If it's an authentication error and we're using OAuth, try ImageFX API as fallback
+            if (response.error.code === 401 && !authorization.startsWith('AIza')) {
+                console.log('[DEBUG] Authentication failed, trying ImageFX API as fallback...');
+                
+                try {
+                    const imageFxResponse = await makeRequest({
+                        reqURL: 'https://aisandbox-pa.googleapis.com/v1:runImageFx',
+                        authorization,
+                        method: 'POST',
+                        body: JSON.stringify({
+                            prompt: prompt,
+                            imageCount: imageCount,
+                            aspectRatio: aspectRatio,
+                            modelNameType: modelNameType,
+                            tool: tool,
+                            ...(seed !== null && { seed: seed })
+                        })
+                    });
+                    
+                    console.log('[DEBUG] ImageFX API response:', {
+                        hasResponse: !!imageFxResponse,
+                        hasError: !!(imageFxResponse && imageFxResponse.error),
+                        hasImagePanels: !!(imageFxResponse && imageFxResponse.imagePanels)
+                    });
+                    
+                    if (imageFxResponse && !imageFxResponse.error && imageFxResponse.imagePanels) {
+                        console.log('[DEBUG] ImageFX API fallback successful');
+                        return imageFxResponse;
+                    } else if (imageFxResponse && imageFxResponse.error) {
+                        console.error('[DEBUG] ImageFX API also failed:', imageFxResponse.error);
+                        throw new Error(`Both APIs failed. Google AI: ${response.error.message}. ImageFX: ${imageFxResponse.error.message}`);
+                    }
+                } catch (fallbackError) {
+                    console.error('[DEBUG] ImageFX API fallback also failed:', fallbackError);
+                    throw new Error(`Both APIs failed. Google AI: ${response.error.message}. ImageFX: ${fallbackError.message}`);
+                }
+            }
+            
             throw new Error(`API Error: ${response.error.message || response.error}`);
         }
 
