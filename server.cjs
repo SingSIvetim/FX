@@ -229,13 +229,13 @@ const generateImage = async (params) => {
         // This is an OAuth token, try ImageFX API with different structure
         apiUrl = 'https://aisandbox-pa.googleapis.com/v1:runImageFx';
         requestBody = {
-            // Try a simpler structure
-            input: {
-                text: prompt,
-                count: imageCount,
-                aspectRatio: aspectRatio,
-                model: modelNameType
-            }
+            // Try a flatter structure without 'input' wrapper
+            text: prompt,
+            count: imageCount,
+            aspectRatio: aspectRatio,
+            model: modelNameType,
+            type: tool,
+            ...(seed !== null && { seed: seed })
         };
     }
 
