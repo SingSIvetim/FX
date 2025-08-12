@@ -41,6 +41,58 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Test file writing endpoint
+app.post('/test-file-write', async (req, res) => {
+    console.log('🧪 Test file write requested');
+    try {
+        const testDir = './test-output';
+        const testFile = path.join(testDir, 'test.txt');
+        
+        console.log('[DEBUG] Test directory:', testDir);
+        console.log('[DEBUG] Test file:', testFile);
+        console.log('[DEBUG] Current working directory:', process.cwd());
+        
+        // Check if directory exists
+        console.log('[DEBUG] Directory exists:', fs.existsSync(testDir));
+        
+        // Try to create directory
+        if (!fs.existsSync(testDir)) {
+            fs.mkdirSync(testDir, { recursive: true });
+            console.log('[DEBUG] Directory created');
+        }
+        
+        // Try to write a test file
+        const testContent = `Test file created at ${new Date().toISOString()}`;
+        fs.writeFileSync(testFile, testContent, 'utf8');
+        console.log('[DEBUG] Test file written');
+        
+        // Check if file exists
+        const fileExists = fs.existsSync(testFile);
+        console.log('[DEBUG] File exists after writing:', fileExists);
+        
+        // Try to read the file
+        if (fileExists) {
+            const readContent = fs.readFileSync(testFile, 'utf8');
+            console.log('[DEBUG] File content read:', readContent);
+        }
+        
+        res.json({ 
+            success: true, 
+            message: 'File write test completed',
+            directoryExists: fs.existsSync(testDir),
+            fileExists: fileExists,
+            workingDirectory: process.cwd()
+        });
+    } catch (error) {
+        console.error('[DEBUG] Test file write error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            workingDirectory: process.cwd()
+        });
+    }
+});
+
 // Simple ping endpoint
 app.get('/ping', (req, res) => {
     console.log('🏓 Ping requested');
@@ -83,7 +135,20 @@ const saveFile = (fileName, fileContent, encoding = "utf-8", filePath = ".") => 
 };
 
 const saveImage = (fileName, imageContent, filePath = ".") => {
-    return saveFile(fileName, imageContent, "base64", filePath);
+    console.log('[DEBUG] saveImage called with:', {
+        fileName,
+        filePath,
+        imageContentLength: imageContent?.length || 0
+    });
+    
+    try {
+        const result = saveFile(fileName, imageContent, "base64", filePath);
+        console.log('[DEBUG] saveFile result:', result);
+        return result;
+    } catch (error) {
+        console.error('[DEBUG] saveImage error:', error);
+        return false;
+    }
 };
 
 // Request function for API calls
@@ -107,19 +172,9 @@ const makeRequest = async (options, customHeaders = {}) => {
         defaultHeaders = {
             'accept': '*/*',
             'accept-language': 'en-US,en;q=0.9',
-            'content-type': 'text/plain;charset=UTF-8',
-            'dnt': '1',
-            'origin': 'https://labs.google',
-            'priority': 'u=1, i',
-            'referer': 'https://labs.google/',
-            'sec-ch-ua': '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Linux"',
-            'sec-fetch-dest': 'empty',
-            'sec-fetch-mode': 'cors',
-            'sec-fetch-site': 'cross-site',
-            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+            'content-type': 'application/json',
             'authorization': options.authorization.startsWith('Bearer') ? options.authorization : `Bearer ${options.authorization}`,
+            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
             ...customHeaders
         };
     }
@@ -204,13 +259,12 @@ const generateImage = async (params) => {
         authLength: authorization?.length
     });
 
-    // Try different API endpoints and structures
+    // Use Google Generative AI API for image generation
     let requestBody;
     let apiUrl;
     
-    // Try the Google Generative AI API first
     if (authorization.startsWith('AIza')) {
-        // This is an API key, use Google Generative AI API
+        // API key - use Google Generative AI API
         apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-4:generateContent';
         requestBody = {
             contents: [{
@@ -226,16 +280,20 @@ const generateImage = async (params) => {
             }
         };
     } else {
-        // This is an OAuth token, try ImageFX API with different structure
-        apiUrl = 'https://aisandbox-pa.googleapis.com/v1:runImageFx';
+        // OAuth token - try Google Generative AI API with OAuth
+        apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3:generateContent';
         requestBody = {
-            // Try a flatter structure without 'input' wrapper
-            text: prompt,
-            count: imageCount,
-            aspectRatio: aspectRatio,
-            model: modelNameType,
-            type: tool,
-            ...(seed !== null && { seed: seed })
+            contents: [{
+                parts: [{
+                    text: prompt
+                }]
+            }],
+            generationConfig: {
+                temperature: 0.4,
+                topK: 32,
+                topP: 1,
+                maxOutputTokens: 2048,
+            }
         };
     }
 
@@ -261,6 +319,25 @@ const generateImage = async (params) => {
         if (response && response.error) {
             console.error('[DEBUG] API Error:', response.error);
             throw new Error(`API Error: ${response.error.message || response.error}`);
+        }
+
+        // Handle different response formats
+        if (response && response.candidates && response.candidates[0] && response.candidates[0].content) {
+            // Google Generative AI format
+            const parts = response.candidates[0].content.parts;
+            const images = parts.filter(part => part.inlineData && part.inlineData.mimeType.startsWith('image/'));
+            
+            if (images.length > 0) {
+                // Convert to our expected format
+                return {
+                    imagePanels: [{
+                        generatedImages: images.map(img => ({
+                            encodedImage: img.inlineData.data,
+                            mediaGenerationId: null
+                        }))
+                    }]
+                };
+            }
         }
 
         if (!response || !response.imagePanels) {
@@ -371,41 +448,78 @@ app.post('/generate', async (req, res) => {
                 ? path.join(outputDir, folderName.trim()) 
                 : outputDir;
 
+            console.log('[DEBUG] Final output directory:', finalOutputDir);
+            console.log('[DEBUG] Directory exists before creation:', fs.existsSync(finalOutputDir));
+
             if (!fs.existsSync(finalOutputDir)) {
-                fs.mkdirSync(finalOutputDir, { recursive: true });
+                try {
+                    fs.mkdirSync(finalOutputDir, { recursive: true });
+                    console.log('[DEBUG] Directory created successfully');
+                } catch (error) {
+                    console.error('[DEBUG] Failed to create directory:', error);
+                    res.write(JSON.stringify({ type: 'error', data: `Failed to create output directory: ${error.message}` }) + '\n');
+                    res.end();
+                    return;
+                }
             }
+
+            console.log('[DEBUG] Directory exists after creation:', fs.existsSync(finalOutputDir));
+            console.log('[DEBUG] Directory is writable:', fs.accessSync ? 'checking...' : 'unknown');
 
             let imageNumber = 1;
             const newEntries = [];
 
             if (response.imagePanels) {
+                console.log('[DEBUG] Processing image panels:', response.imagePanels.length);
                 for (const panel of response.imagePanels) {
+                    console.log('[DEBUG] Panel has generated images:', panel.generatedImages?.length || 0);
                     for (const image of panel.generatedImages) {
                         const currentNum = imageNumber;
                         const imageName = `${timestamp}-generation-${gen + 1}-${currentNum}-${aspectRatio}.png`;
                         imageNumber++;
                         
-                        if (saveImage(imageName, image.encodedImage, finalOutputDir)) {
-                            const meta = {
-                                fileName: imageName,
-                                prompt: prompt,
-                                seed: seed,
-                                aspectRatio: aspectRatio,
-                                generationNumber: gen + 1,
-                                imageNumber: currentNum,
-                                savedAt: new Date().toISOString(),
-                                mediaGenerationId: image.mediaGenerationId || null,
-                                model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)'
-                            };
-                            newEntries.push(meta);
-                            
+                        console.log('[DEBUG] Attempting to save image:', imageName);
+                        console.log('[DEBUG] Image data length:', image.encodedImage?.length || 0);
+                        
+                        try {
+                            if (saveImage(imageName, image.encodedImage, finalOutputDir)) {
+                                console.log('[DEBUG] Image saved successfully:', imageName);
+                                const meta = {
+                                    fileName: imageName,
+                                    prompt: prompt,
+                                    seed: seed,
+                                    aspectRatio: aspectRatio,
+                                    generationNumber: gen + 1,
+                                    imageNumber: currentNum,
+                                    savedAt: new Date().toISOString(),
+                                    mediaGenerationId: image.mediaGenerationId || null,
+                                    model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)'
+                                };
+                                newEntries.push(meta);
+                                
+                                res.write(JSON.stringify({ 
+                                    type: 'progress', 
+                                    data: `Saved image ${currentNum}: ${imageName}` 
+                                }) + '\n');
+                            } else {
+                                console.error('[DEBUG] Failed to save image:', imageName);
+                                res.write(JSON.stringify({ 
+                                    type: 'error', 
+                                    data: `Failed to save image ${currentNum}: ${imageName}` 
+                                }) + '\n');
+                            }
+                        } catch (error) {
+                            console.error('[DEBUG] Error saving image:', error);
                             res.write(JSON.stringify({ 
-                                type: 'progress', 
-                                data: `Saved image ${currentNum}: ${imageName}` 
+                                type: 'error', 
+                                data: `Error saving image ${currentNum}: ${error.message}` 
                             }) + '\n');
                         }
                     }
                 }
+            } else {
+                console.log('[DEBUG] No image panels in response');
+                res.write(JSON.stringify({ type: 'error', data: 'No images generated - no image panels in response' }) + '\n');
             }
 
             // Update gallery.html with new entries
