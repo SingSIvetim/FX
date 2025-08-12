@@ -41,9 +41,51 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Get available profiles endpoint
-app.get('/railway-profiles', (req, res) => {
-    console.log('👥 Railway profiles requested');
+// Profile photos endpoint
+app.post('/profile-photos', (req, res) => {
+    console.log('👤 Profile photos requested');
+    try {
+        const { profileName } = req.body;
+        if (!profileName) {
+            return res.status(400).json({ error: 'Profile name is required' });
+        }
+        
+        const tempDir = path.join(process.cwd(), 'temp_images');
+        const galleryPath = path.join(tempDir, 'gallery.html');
+        
+        if (!fs.existsSync(galleryPath)) {
+            return res.json([]);
+        }
+        
+        // Read gallery data
+        const content = fs.readFileSync(galleryPath, 'utf-8');
+        const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
+        
+        if (!match) {
+            return res.json([]);
+        }
+        
+        const data = JSON.parse(match[1]);
+        
+        // Filter by profile name (for now, we'll use a simple approach)
+        // In a real implementation, you'd store profile info with each image
+        const profilePhotos = data.filter(item => {
+            // For now, we'll show all photos since we don't have profile storage yet
+            // This can be enhanced later with proper profile-based filtering
+            return true;
+        });
+        
+        res.json(profilePhotos);
+        
+    } catch (error) {
+        console.error('[DEBUG] Profile photos error:', error);
+        res.json([]);
+    }
+});
+
+// Public photos endpoint
+app.get('/public-photos', (req, res) => {
+    console.log('🌐 Public photos requested');
     try {
         const tempDir = path.join(process.cwd(), 'temp_images');
         const galleryPath = path.join(tempDir, 'gallery.html');
@@ -62,13 +104,11 @@ app.get('/railway-profiles', (req, res) => {
         
         const data = JSON.parse(match[1]);
         
-        // Extract unique profile names
-        const profiles = [...new Set(data.map(item => item.profileName).filter(Boolean))];
-        
-        res.json(profiles);
+        // Return all photos as public
+        res.json(data);
         
     } catch (error) {
-        console.error('[DEBUG] Railway profiles error:', error);
+        console.error('[DEBUG] Public photos error:', error);
         res.json([]);
     }
 });
@@ -96,45 +136,9 @@ app.get('/download-gallery', (req, res) => {
     }
 });
 
-// Railway gallery data endpoint (JSON) - with profile filtering
-app.get('/railway-gallery-data/:profileName?', (req, res) => {
-    console.log('📊 Railway gallery data requested for profile:', req.params.profileName || 'all');
-    try {
-        const tempDir = path.join(process.cwd(), 'temp_images');
-        const galleryPath = path.join(tempDir, 'gallery.html');
-        
-        if (!fs.existsSync(galleryPath)) {
-            return res.json([]);
-        }
-        
-        // Read gallery data
-        const content = fs.readFileSync(galleryPath, 'utf-8');
-        const match = content.match(/<script id="gallery-data" type="application\/json">([\s\S]*?)<\/script>/);
-        
-        if (!match) {
-            return res.json([]);
-        }
-        
-        let data = JSON.parse(match[1]);
-        
-        // Filter by profile name if specified
-        if (req.params.profileName && req.params.profileName !== 'public') {
-            // Only show photos from the specific profile
-            data = data.filter(item => item.profileName === req.params.profileName);
-        }
-        // If 'public' is specified, show all photos (no filtering)
-        
-        res.json(data);
-        
-    } catch (error) {
-        console.error('[DEBUG] Railway gallery data error:', error);
-        res.json([]);
-    }
-});
-
-// Railway gallery data endpoint (JSON) - legacy endpoint for all photos
+// Railway gallery data endpoint (JSON)
 app.get('/railway-gallery-data', (req, res) => {
-    console.log('📊 Railway gallery data requested (all photos)');
+    console.log('📊 Railway gallery data requested');
     try {
         const tempDir = path.join(process.cwd(), 'temp_images');
         const galleryPath = path.join(tempDir, 'gallery.html');
@@ -221,128 +225,10 @@ app.get('/railway-gallery', (req, res) => {
     console.log('🖼️ Railway gallery requested');
     try {
         const tempDir = path.join(process.cwd(), 'temp_images');
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-        }
         const galleryPath = path.join(tempDir, 'gallery.html');
         
         if (!fs.existsSync(galleryPath)) {
-            // Create an empty gallery if none exists with modern UI theme
-            const emptyGallery = `<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ImageFX Gallery - Railway</title>
-    <style>
-        :root {
-            --bg: #000000;
-            --bg-elev: rgba(0, 0, 0, 0.85);
-            --card: rgba(255, 255, 255, 0.03);
-            --text: #ffffff;
-            --muted: #94a3b8;
-            --muted-2: #64748b;
-            --border: rgba(255, 255, 255, 0.06);
-            --border-input: rgba(255, 255, 255, 0.12);
-            --green: #4ade80;
-            --green-2: #34d399;
-            --red: #ef4444;
-            --purple: #a5b4fc;
-            --orange: #f59e0b;
-            --btn-default: rgba(255, 255, 255, 0.05);
-            --btn-green: rgba(74, 222, 128, 0.15);
-            --btn-green-hover: rgba(74, 222, 128, 0.25);
-        }
-        * { box-sizing: border-box; }
-        body { 
-            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-            margin: 0; 
-            background: var(--bg); 
-            color: var(--text);
-            line-height: 1.5;
-        }
-        .app { 
-            max-width: 1200px; 
-            margin: 0 auto; 
-            padding: 24px; 
-        }
-        .header { 
-            text-align: center; 
-            margin-bottom: 30px; 
-            padding: 24px;
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-        }
-        .header h1 { 
-            margin: 0 0 10px; 
-            font-size: 24px; 
-            font-weight: 600; 
-            color: var(--text);
-        }
-        .railway-note { 
-            background: var(--orange); 
-            color: #000; 
-            padding: 12px; 
-            border-radius: 8px; 
-            margin-bottom: 20px; 
-            text-align: center;
-            font-weight: 500;
-        }
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--muted);
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-        }
-        .empty-state h2 { 
-            margin: 0 0 10px; 
-            color: var(--text); 
-        }
-        .btn {
-            border: 1px solid var(--border-input);
-            background: var(--btn-default);
-            color: var(--text);
-            border-radius: 8px;
-            padding: 10px 14px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-        .btn-green {
-            background: var(--btn-green);
-            border-color: var(--green);
-        }
-        .btn-green:hover {
-            background: var(--btn-green-hover);
-        }
-    </style>
-</head>
-<body>
-    <div class="app">
-        <div class="header">
-            <h1>ImageFX Gallery</h1>
-            <div class="railway-note">⚠️ Railway Environment: Images are temporary. Download them before they expire!</div>
-        </div>
-        <div class="empty-state">
-            <h2>No images found</h2>
-            <p>Generate some images first to see them here!</p>
-            <a href="/" class="btn btn-green" style="margin-top: 20px;">Go to Generator</a>
-        </div>
-    </div>
-    <script id="gallery-data" type="application/json">[]</script>
-</body>
-</html>`;
-            fs.writeFileSync(galleryPath, emptyGallery, { encoding: 'utf-8' });
+            return res.status(404).json({ error: 'No gallery found. Generate some images first!' });
         }
         
         const galleryContent = fs.readFileSync(galleryPath, 'utf-8');
@@ -833,7 +719,7 @@ const generateImage = async (params) => {
 // Generate endpoint with real functionality
 app.post('/generate', async (req, res) => {
     console.log('🖼️ Generate requested');
-    const { prompt, folderName, authToken, authFile, generationCount, imageCount, aspectRatio, outputDir, proxy, seed, model, noFallback, profileName } = req.body;
+    const { prompt, folderName, authToken, authFile, generationCount, imageCount, aspectRatio, outputDir, proxy, seed, model, noFallback } = req.body;
     
     // Check if we're on Railway (ephemeral file system)
     const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
@@ -873,14 +759,11 @@ app.post('/generate', async (req, res) => {
                 console.log(`[SERVER] Attempting generation with model ${selectedModel} and tool ${selectedTool}`);
                 res.write(JSON.stringify({ type: 'progress', data: `Using model: ${selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)'}` }) + '\n');
                 
-                // Generate unique seed for each image if not provided
-                const imageSeed = typeof seed === 'number' ? seed : Math.floor(Math.random() * 1000000);
-                
                 response = await generateImage({
                     prompt,
                     authorization: finalAuthToken,
                     imageCount: imageCount,
-                    seed: imageSeed,
+                    seed: typeof seed === 'number' ? seed : null,
                     aspectRatio: aspectRatioMap[aspectRatio],
                     modelNameType: selectedModel,
                     tool: selectedTool,
@@ -901,14 +784,11 @@ app.post('/generate', async (req, res) => {
                     res.write(JSON.stringify({ type: 'progress', data: 'Falling back to Imagen 3 (quality)...' }) + '\n');
                     
                     try {
-                        // Generate unique seed for fallback attempt
-                        const fallbackSeed = typeof seed === 'number' ? seed : Math.floor(Math.random() * 1000000);
-                        
                         response = await generateImage({
                             prompt,
                             authorization: finalAuthToken,
                             imageCount: imageCount,
-                            seed: fallbackSeed,
+                            seed: typeof seed === 'number' ? seed : null,
                             aspectRatio: aspectRatioMap[aspectRatio],
                             modelNameType: selectedModel,
                             tool: selectedTool,
@@ -984,7 +864,7 @@ app.post('/generate', async (req, res) => {
                                     const meta = {
                                         fileName: imageName,
                                         prompt: prompt,
-                                        seed: imageSeed, // Use the actual seed used for generation
+                                        seed: seed,
                                         aspectRatio: aspectRatio,
                                         generationNumber: gen + 1,
                                         imageNumber: currentNum,
@@ -993,7 +873,6 @@ app.post('/generate', async (req, res) => {
                                         model: selectedModel === 'IMAGEN_4_0' ? 'Best (Imagen 4)' : 'Quality (Imagen 3)',
                                         downloadUrl: downloadUrl,
                                         encodedImage: image.encodedImage, // Include the image data for gallery display
-                                        profileName: profileName || 'anonymous', // Add profile name
                                         isRailway: true
                                     };
                                     newEntries.push(meta);
@@ -1010,7 +889,7 @@ app.post('/generate', async (req, res) => {
                                     const meta = {
                                         fileName: imageName,
                                         prompt: prompt,
-                                        seed: imageSeed, // Use the actual seed used for generation
+                                        seed: seed,
                                         aspectRatio: aspectRatio,
                                         generationNumber: gen + 1,
                                         imageNumber: currentNum,
@@ -1050,11 +929,8 @@ app.post('/generate', async (req, res) => {
             // Update gallery.html with new entries
             if (newEntries.length > 0) {
                 if (isRailway) {
-                    // On Railway: Create profile-based gallery
+                    // On Railway: Create temporary gallery
                     const tempDir = path.join(process.cwd(), 'temp_images');
-                    if (!fs.existsSync(tempDir)) {
-                        fs.mkdirSync(tempDir, { recursive: true });
-                    }
                     const galleryPath = path.join(tempDir, 'gallery.html');
                     let data = [];
                     
@@ -1072,7 +948,6 @@ app.post('/generate', async (req, res) => {
                     
                     data = [...data, ...newEntries];
                     
-                    // Create the gallery HTML (same as before)
                     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1103,64 +978,96 @@ app.post('/generate', async (req, res) => {
             --bg-elev: #1f2937;
         }
         
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body { 
             font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
-            margin: 0; 
             background: var(--bg); 
             color: var(--text);
             line-height: 1.5;
+            min-height: 100vh;
         }
         
-        .app { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .app { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
         
         .header { 
             text-align: center; 
             margin-bottom: 30px; 
-            padding: 20px;
+            padding: 24px;
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 12px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
         }
         
-        .header h1 { margin: 0 0 10px; font-size: 24px; font-weight: 600; }
+        .header h1 { 
+            margin: 0 0 12px; 
+            font-size: 28px; 
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--green), var(--purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
         
         .railway-note { 
-            background: #ff9800; 
+            background: linear-gradient(135deg, #ff9800, #ff5722); 
             color: #000; 
-            padding: 12px; 
+            padding: 12px 16px; 
             border-radius: 8px; 
-            margin-bottom: 20px; 
+            margin-bottom: 0;
             text-align: center;
-            font-weight: 500;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
         }
         
         .bulk-controls { 
             background: var(--card); 
-            padding: 16px; 
+            padding: 20px; 
             border-radius: 12px; 
-            margin-bottom: 20px;
+            margin-bottom: 24px;
             border: 1px solid var(--border);
             display: flex;
             gap: 12px;
             justify-content: center;
             flex-wrap: wrap;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
         }
         
         .btn {
             background: var(--btn-green);
             color: var(--green);
             border: 1px solid var(--border-green);
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 10px 18px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 500;
             transition: all 0.2s ease;
             text-decoration: none;
             display: inline-block;
+            backdrop-filter: blur(8px);
         }
         
-        .btn:hover { background: var(--btn-green-hover); }
+        .btn:hover { 
+            background: var(--btn-green-hover); 
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
         
         .btn-purple { 
             background: var(--btn-purple); 
@@ -1168,7 +1075,10 @@ app.post('/generate', async (req, res) => {
             border-color: var(--border-purple); 
         }
         
-        .btn-purple:hover { background: var(--btn-purple-hover); }
+        .btn-purple:hover { 
+            background: var(--btn-purple-hover);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
         
         .btn-blue { 
             background: #2196F3; 
@@ -1176,92 +1086,140 @@ app.post('/generate', async (req, res) => {
             border-color: #2196F3; 
         }
         
-        .btn-blue:hover { background: #1976D2; }
+        .btn-blue:hover { 
+            background: #1976D2;
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        }
         
         .grid { 
             display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
-            gap: 16px; 
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+            gap: 20px;
+            flex: 1;
         }
         
         .card { 
             background: var(--card); 
             border: 1px solid var(--border); 
             border-radius: 12px; 
-            padding: 12px;
-            transition: all 0.2s ease;
+            padding: 16px;
+            transition: all 0.3s ease;
             cursor: pointer;
             position: relative;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            overflow: hidden;
         }
         
         .card:hover { 
             border-color: var(--border-green);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
         }
         
         .card.selected {
             border-color: var(--btn-purple);
             background: color-mix(in oklab, var(--card) 90%, var(--purple) 10%);
+            box-shadow: 0 8px 32px rgba(139, 92, 246, 0.3);
         }
         
         .card img { 
             width: 100%; 
-            height: 200px; 
+            height: 220px; 
             object-fit: cover; 
             border-radius: 8px; 
-            margin-bottom: 12px;
+            margin-bottom: 16px;
             border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover img {
+            transform: scale(1.02);
         }
         
         .meta { 
             font-size: 13px; 
             color: var(--muted); 
-            margin-bottom: 12px;
-            line-height: 1.4;
+            margin-bottom: 16px;
+            line-height: 1.5;
         }
         
-        .meta strong { color: var(--text); display: block; margin-bottom: 4px; }
+        .meta strong { 
+            color: var(--text); 
+            display: block; 
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
         
         .download-btn { 
             background: var(--btn-green); 
             color: var(--green); 
             border: 1px solid var(--border-green); 
-            padding: 8px 16px; 
-            border-radius: 6px; 
+            padding: 10px 18px; 
+            border-radius: 8px; 
             cursor: pointer; 
             text-decoration: none; 
             display: inline-block; 
             font-size: 13px;
             font-weight: 500;
             transition: all 0.2s ease;
+            width: 100%;
+            text-align: center;
         }
         
-        .download-btn:hover { background: var(--btn-green-hover); }
+        .download-btn:hover { 
+            background: var(--btn-green-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
         
         .checkbox { 
             position: absolute; 
-            top: 8px; 
-            left: 8px; 
-            width: 20px; 
-            height: 20px; 
+            top: 12px; 
+            left: 12px; 
+            width: 22px; 
+            height: 22px; 
             cursor: pointer;
             z-index: 10;
+            accent-color: var(--purple);
         }
         
-        .selection-info {
-            background: var(--card);
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            border: 1px solid var(--border);
+        .empty-state {
             text-align: center;
+            padding: 60px 20px;
             color: var(--muted);
+            background: var(--card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        
+        .empty-state h2 {
+            font-size: 24px;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .empty-state .btn {
+            background: var(--btn-purple);
+            color: var(--purple);
+            border-color: var(--border-purple);
+            padding: 12px 24px;
+            font-size: 16px;
         }
         
         @media (max-width: 768px) {
-            .grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
-            .bulk-controls { flex-direction: column; align-items: center; }
+            .grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+            .bulk-controls { flex-direction: column; align-items: center; gap: 8px; }
+            .header h1 { font-size: 24px; }
+            .app { padding: 16px; }
         }
     </style>
 </head>
@@ -1272,34 +1230,42 @@ app.post('/generate', async (req, res) => {
             <div class="railway-note">⚠️ Railway Environment: Images are temporary. Download them before they expire!</div>
         </div>
         
-        <div class="selection-info" id="selectionInfo">
-            Click images to select them. Use Ctrl/Cmd+Click for multiple selection.
-        </div>
-        
-        <div class="bulk-controls">
-            <button class="btn btn-blue" onclick="selectAll()">Select All</button>
-            <button class="btn" onclick="downloadAll()">Download All (${data.length})</button>
-            <button class="btn btn-purple" onclick="downloadSelected()">Download Selected</button>
-            <button class="btn btn-purple" onclick="downloadZip()">Download ZIP</button>
-            <button class="btn" onclick="downloadGallery()">Download Gallery.html</button>
-        </div>
-        
-        <div class="grid">
-            ${data.map((item, index) => `
-                <div class="card" data-index="${index}" onclick="toggleSelection(event, ${index})">
-                    <input type="checkbox" class="checkbox" id="img-${index}" data-url="${item.downloadUrl}" data-filename="${item.fileName}" onclick="event.stopPropagation()">
-                    <img src="data:image/png;base64,${item.encodedImage || ''}" alt="${item.fileName}" onerror="this.style.display='none'">
-                    <div class="meta">
-                        <strong>${item.fileName}</strong>
-                        Prompt: ${item.prompt}<br>
-                        Seed: ${item.seed || 'Random'}<br>
-                        Model: ${item.model}<br>
-                        Generated: ${new Date(item.savedAt).toLocaleString()}
+        ${data.length === 0 ? `
+            <div class="empty-state">
+                <h2>No images found</h2>
+                <p>Generate some images first to see them here!</p>
+                <a href="/" class="btn">Go to Generator</a>
+            </div>
+        ` : `
+            <div class="selection-info" id="selectionInfo">
+                Click images to select them. Use Ctrl/Cmd+Click for multiple selection.
+            </div>
+            
+            <div class="bulk-controls">
+                <button class="btn btn-blue" onclick="selectAll()">Select All</button>
+                <button class="btn" onclick="downloadAll()">Download All (${data.length})</button>
+                <button class="btn btn-purple" onclick="downloadSelected()">Download Selected</button>
+                <button class="btn btn-purple" onclick="downloadZip()">Download ZIP</button>
+                <button class="btn" onclick="downloadGallery()">Download Gallery.html</button>
+            </div>
+            
+            <div class="grid">
+                ${data.map((item, index) => `
+                    <div class="card" data-index="${index}" onclick="toggleSelection(event, ${index})">
+                        <input type="checkbox" class="checkbox" id="img-${index}" data-url="${item.downloadUrl}" data-filename="${item.fileName}" onclick="event.stopPropagation()">
+                        <img src="data:image/png;base64,${item.encodedImage || ''}" alt="${item.fileName}" onerror="this.style.display='none'">
+                        <div class="meta">
+                            <strong>${item.fileName}</strong>
+                            Prompt: ${item.prompt}<br>
+                            Seed: ${item.seed || 'Random'}<br>
+                            Model: ${item.model}<br>
+                            Generated: ${new Date(item.savedAt).toLocaleString()}
+                        </div>
+                        <a href="${item.downloadUrl}" class="download-btn" download="${item.fileName}" onclick="event.stopPropagation()">Download Image</a>
                     </div>
-                    <a href="${item.downloadUrl}" class="download-btn" download="${item.fileName}" onclick="event.stopPropagation()">Download Image</a>
-                </div>
-            `).join('')}
-        </div>
+                `).join('')}
+            </div>
+        `}
     </div>
     
     <script>
@@ -1307,6 +1273,8 @@ app.post('/generate', async (req, res) => {
         
         function updateSelectionInfo() {
             const info = document.getElementById('selectionInfo');
+            if (!info) return;
+            
             if (selectedItems.size === 0) {
                 info.textContent = 'Click images to select them. Use Ctrl/Cmd+Click for multiple selection.';
             } else {

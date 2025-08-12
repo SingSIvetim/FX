@@ -285,7 +285,7 @@
                 <div>
         <h1>ImageFX Generator</h1>
         
-                </div>
+            </div>
             </div>
             <div class="toolbar">
                 <button class="btn" id="densityToggle" type="button" title="Toggle density">Compact</button>
@@ -380,21 +380,21 @@
                     <div class="setting-tabs">
                         <button class="setting-tab-btn active" data-target="settingsContent">Generation Settings</button>
                         <button class="setting-tab-btn" data-target="authContent">Authentication</button>
-                    </div>
-                    
+        </div>
+
                     <!-- Settings Content -->
                     <div id="settingsContent" class="setting-content">
                         <div class="grid-2">
-                            <div class="form-group">
+        <div class="form-group">
                                 <label for="generationCount">Generation Count</label>
-                                <input type="number" id="generationCount" min="1" value="1">
-                            </div>
-                            <div class="form-group">
+            <input type="number" id="generationCount" min="1" value="1">
+        </div>
+        <div class="form-group">
                                 <label for="imageCount">Images per Prompt</label>
-                                <input type="number" id="imageCount" min="1" max="8" value="8">
+            <input type="number" id="imageCount" min="1" max="8" value="8">
                                 <div class="input-help">Maximum 8 images per prompt.</div>
-                            </div>
-                            <div class="form-group">
+        </div>
+        <div class="form-group">
                                 <label for="seed">Seed</label>
                                 <div class="row" style="gap:8px;">
                                     <input type="number" id="seed" placeholder="Random when unlocked" style="flex:1;">
@@ -413,13 +413,13 @@
                             <div class="form-group">
                                 <label for="aspectRatio">Aspect Ratio</label>
                                 <select id="aspectRatio" class="select-black">
-                                    <option value="landscape">Landscape (16:9)</option>
-                                    <option value="portrait">Portrait (9:16)</option>
-                                    <option value="square">Square (1:1)</option>
-                                    <option value="mobile_portrait">Mobile Portrait (3:4)</option>
-                                    <option value="mobile_landscape">Mobile Landscape (4:3)</option>
-                                </select>
-                            </div>
+                <option value="landscape">Landscape (16:9)</option>
+                <option value="portrait">Portrait (9:16)</option>
+                <option value="square">Square (1:1)</option>
+                <option value="mobile_portrait">Mobile Portrait (3:4)</option>
+                <option value="mobile_landscape">Mobile Landscape (4:3)</option>
+            </select>
+        </div>
                             <div class="form-group" id="outputDirGroup">
                                 <label for="outputDir">Output Directory</label>
                                 <input type="text" id="outputDir" placeholder="C:/output/folder">
@@ -428,22 +428,22 @@
                             <div class="form-group" id="profileNameGroup" style="display: none;">
                                 <label for="profileName">Profile Name</label>
                                 <input type="text" id="profileName" placeholder="Enter your profile name">
-                                <div class="input-help">Your photos will be saved under this profile name. Use "Public Photos" to view all photos.</div>
+                                <div class="input-help">Your photos will be saved under this profile name. Use "View Photos" to view all photos.</div>
                             </div>
-                            <div class="form-group" id="publicPhotosGroup" style="display: none;">
-                                <label for="publicPhotos">View Photos</label>
-                                <select id="publicPhotos">
-                                    <option value="">Select profile to view photos</option>
-                                    <option value="public">Public Photos (All)</option>
-                                </select>
+                            <div class="form-group" id="viewPhotosGroup" style="display: none;">
+                                <label>View Photos</label>
+                                <div class="row" style="gap: 8px; flex-wrap: wrap;">
+                                    <button class="btn" onclick="viewProfilePhotos()">Select profile to view photos</button>
+                                    <button class="btn btn-purple" onclick="viewPublicPhotos()">Public Photos (All)</button>
+                                </div>
                                 <div class="input-help">Select a profile to view their photos or choose "Public Photos" to see all.</div>
                             </div>
                             <div class="form-group" style="grid-column: 1 / -1;">
                                 <label for="proxy">Proxy (optional)</label>
-                                <input type="text" id="proxy" placeholder="http://username:password@host:port">
+            <input type="text" id="proxy" placeholder="http://username:password@host:port">
                             </div>
                         </div>
-                    </div>
+        </div>
 
                     <!-- Authentication Content -->
                     <div id="authContent" class="setting-content hidden">
@@ -452,13 +452,13 @@
                             <div class="input-with-button">
                                 <input type="password" id="authToken" placeholder="Paste your auth token here">
                                 <button type="button" class="btn toggle-visibility" onclick="toggleAuthTokenVisibility()">Show</button>
-                            </div>
+                </div>
                             <div class="input-help">Paste your auth token here, or provide an auth file path below.</div>
-                        </div>
+            </div>
                         <div class="row" style="margin-top:8px; gap:8px; flex-wrap: wrap;">
                             <button type="button" class="btn btn-purple" onclick="openTokenModal()">Auto Get Token</button>
                             <button type="button" class="btn" onclick="pasteTokenFromClipboard()">Paste from Clipboard</button>
-                        </div>
+        </div>
                         <div class="form-group">
                             <label for="authFile">Auth File Path (optional)</label>
                             <input type="text" id="authFile" placeholder="C:/path/to/.auth">
@@ -468,7 +468,7 @@
                 </section>
             </div>
         </div>
-        
+
         <!-- Folder Contents - Outside layout grid -->
         <section class="card" id="folderStatus" style="display:none; margin-top: 20px;">
             <h2 style="font-size:16px; margin:0 0 8px;">Folder Contents</h2>
@@ -562,16 +562,17 @@
         const isRailway = location.hostname.includes('railway.app');
         if (isRailway) {
             const outputDirGroup = document.getElementById('outputDirGroup');
+            const profileNameGroup = document.getElementById('profileNameGroup');
+            const viewPhotosGroup = document.getElementById('viewPhotosGroup');
+            
             if (outputDirGroup) {
                 outputDirGroup.style.display = 'none';
             }
-            const profileNameGroup = document.getElementById('profileNameGroup');
             if (profileNameGroup) {
                 profileNameGroup.style.display = 'block';
             }
-            const publicPhotosGroup = document.getElementById('publicPhotosGroup');
-            if (publicPhotosGroup) {
-                publicPhotosGroup.style.display = 'block';
+            if (viewPhotosGroup) {
+                viewPhotosGroup.style.display = 'block';
             }
         }
 
@@ -602,7 +603,7 @@
             
             // Set default output directory if not saved
             const defaultOutputDir = savedOutputDir || 'C:/Users/Sino/Downloads/imagefx';
-            
+
             if (savedAuthToken) document.getElementById('authToken').value = savedAuthToken;
             if (savedAuthFile) document.getElementById('authFile').value = savedAuthFile;
             document.getElementById('outputDir').value = defaultOutputDir;
@@ -615,7 +616,7 @@
             if (savedModel) document.getElementById('model').value = savedModel;
             
             // Load prompts with folder data
-            const container = document.getElementById('promptContainer');
+                const container = document.getElementById('promptContainer');
             container.innerHTML = '';
             if (savedPromptsData) {
                 const promptsData = JSON.parse(savedPromptsData);
@@ -818,7 +819,7 @@
                 const promptText = item.querySelector('.prompt-input').value;
                 const folderName = item.querySelector('.folder-input').value.trim(); // Remove default, just trim
                 return promptText.split('\n')
-                    .map(prompt => prompt.trim())
+                .map(prompt => prompt.trim())
                     .filter(prompt => prompt !== '')
                     .map(prompt => ({
                         text: prompt + selected,
@@ -868,7 +869,6 @@
                             proxy: proxy || undefined,
                             seed: seedLock && seedValue ? Number(seedValue) : null,
                             model,
-                            profileName: isRailway ? document.getElementById('profileName').value : undefined,
                             // noFallback removed
                         })
                     });
@@ -959,7 +959,7 @@
                     window.open(data.galleryUrl, '_blank');
                 }
                 
-            } catch (e) {
+                            } catch (e) {
                 console.error('Open folder error:', e);
             }
         }
@@ -967,34 +967,28 @@
         let scanInterval = null;
         async function scanOutputFolder() {
             try {
+                const outputDir = document.getElementById('outputDir').value;
+                if (!outputDir) { 
+                    return; 
+                }
+                
+                // Check if we're on Railway
                 const isRailway = location.hostname.includes('railway.app');
                 
+                const container = document.getElementById('folderGrid');
+                const countEl = document.getElementById('folderCount');
+                const box = document.getElementById('folderStatus');
+                container.innerHTML = '';
+                countEl.textContent = 'Scanning...';
+                box.style.display = 'block';
+                
                 if (isRailway) {
-                    // On Railway: Get profile name and public photos selection
-                    const profileName = document.getElementById('profileName').value;
-                    const publicPhotos = document.getElementById('publicPhotos').value;
-                    
-                    if (!profileName && !publicPhotos) {
-                        alert('Please enter a Profile Name or select a profile to view photos.');
-                        return;
-                    }
-                    
-                    const container = document.getElementById('folderGrid');
-                    const countEl = document.getElementById('folderCount');
-                    const box = document.getElementById('folderStatus');
-                    container.innerHTML = '';
-                    countEl.textContent = 'Loading photos...';
-                    box.style.display = 'block';
-                    
-                    // Get photos based on selection
-                    const endpoint = publicPhotos === 'public' ? '/railway-gallery-data' : `/railway-gallery-data/${encodeURIComponent(profileName)}`;
-                    
+                    // On Railway: Get images from Railway gallery data
                     try {
-                        const resp = await fetch(`${API_BASE}${endpoint}`);
+                        const resp = await fetch(`${API_BASE}/railway-gallery-data`);
                         if (resp.ok) {
                             const data = await resp.json();
-                            const displayName = publicPhotos === 'public' ? 'Public Photos' : profileName;
-                            countEl.textContent = `Found ${data.length} image(s) in ${displayName}`;
+                            countEl.textContent = `Found ${data.length} image(s) on Railway`;
                             
                             if (data.length === 0) {
                                 container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found. Generate some images first!</div>';
@@ -1065,21 +1059,15 @@
                             container.appendChild(bulkCard);
                             
                         } else {
-                            countEl.textContent = 'No images found. Generate some images first!';
+                            countEl.textContent = 'No images found on Railway. Generate some images first!';
                             container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No images found. Generate some images first!</div>';
                         }
-                    } catch (error) {
+            } catch (error) {
                         console.error('Railway gallery data error:', error);
                         countEl.textContent = 'Error loading Railway images';
                         container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Error loading images from Railway.</div>';
                     }
                     return;
-                }
-                
-                // Local development logic (unchanged)
-                const outputDir = document.getElementById('outputDir').value;
-                if (!outputDir) { 
-                    return; 
                 }
                 
                 console.log('Scanning folder:', outputDir);
@@ -1269,38 +1257,110 @@
             }
         }
 
-        // Load available profiles for Railway
-        async function loadAvailableProfiles() {
-            const isRailway = location.hostname.includes('railway.app');
-            if (!isRailway) return;
+        // Profile photo viewing functions
+        async function viewProfilePhotos() {
+            const profileName = document.getElementById('profileName').value;
+            if (!profileName) {
+                alert('Please enter a profile name first.');
+                return;
+            }
             
             try {
-                const resp = await fetch(`${API_BASE}/railway-profiles`);
+                const resp = await fetch(`${API_BASE}/profile-photos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ profileName })
+                });
+                
                 if (resp.ok) {
-                    const profiles = await resp.json();
-                    const select = document.getElementById('publicPhotos');
-                    
-                    // Clear existing options except the first two
-                    while (select.children.length > 2) {
-                        select.removeChild(select.lastChild);
-                    }
-                    
-                    // Only add "Public Photos" option, don't show individual profile names
-                    // This ensures privacy - users can only see their own photos or all photos
-                    if (profiles.length > 0) {
-                        const publicOption = document.createElement('option');
-                        publicOption.value = 'public';
-                        publicOption.textContent = 'Public Photos (All)';
-                        select.appendChild(publicOption);
-                    }
+                    const data = await resp.json();
+                    displayPhotos(data, `Photos for profile: ${profileName}`);
+                } else {
+                    alert('No photos found for this profile.');
                 }
             } catch (error) {
-                console.error('Failed to load profiles:', error);
+                console.error('View profile photos error:', error);
+                alert('Error loading profile photos.');
             }
         }
 
-        // Load profiles when page loads
-        document.addEventListener('DOMContentLoaded', loadAvailableProfiles);
+        async function viewPublicPhotos() {
+            try {
+                const resp = await fetch(`${API_BASE}/public-photos`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    displayPhotos(data, 'Public Photos (All)');
+                } else {
+                    alert('No public photos found.');
+                }
+            } catch (error) {
+                console.error('View public photos error:', error);
+                alert('Error loading public photos.');
+            }
+        }
+
+        function displayPhotos(data, title) {
+            const container = document.getElementById('folderGrid');
+            const countEl = document.getElementById('folderCount');
+            const box = document.getElementById('folderStatus');
+            
+            container.innerHTML = '';
+            countEl.textContent = title;
+            box.style.display = 'block';
+            
+            if (data.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No photos found.</div>';
+                return;
+            }
+            
+            data.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.style.padding = '8px';
+                card.style.position = 'relative';
+                
+                // Create image element
+                const img = document.createElement('img');
+                img.alt = item.fileName;
+                img.style.cssText = 'width:100%; height:120px; object-fit:cover; border-radius:6px; cursor:pointer;';
+                
+                // Set image source from base64 data
+                if (item.encodedImage) {
+                    img.src = `data:image/png;base64,${item.encodedImage}`;
+                }
+                
+                // Add click handler for image details
+                img.onclick = () => showDetail(item);
+                
+                // Create metadata
+                const meta = document.createElement('div');
+                meta.className = 'input-help';
+                meta.style.marginTop = '6px';
+                meta.style.fontSize = '11px';
+                
+                const promptShort = item.prompt ? (item.prompt.length > 30 ? item.prompt.slice(0, 30) + '…' : item.prompt) : '';
+                meta.textContent = `${item.seed ? 'Seed: ' + item.seed + ' • ' : ''}${promptShort}`;
+                
+                // Create download button
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'btn';
+                downloadBtn.style.cssText = 'position:absolute; top:4px; right:4px; padding:4px 8px; font-size:10px; background:var(--btn-green); color:var(--green); border:1px solid var(--border-green); border-radius:4px; cursor:pointer;';
+                downloadBtn.textContent = 'Download';
+                downloadBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    const link = document.createElement('a');
+                    link.href = item.downloadUrl;
+                    link.download = item.fileName;
+                    link.click();
+                };
+                
+                // Add elements to card
+                card.appendChild(downloadBtn);
+                card.appendChild(img);
+                card.appendChild(meta);
+                container.appendChild(card);
+            });
+        }
 
         // Detail modal controls
         function showDetail(item) {
