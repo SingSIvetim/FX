@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "npm run railway",
+    "startCommand": "node server.js",
     "healthcheckPath": "/health"
   }
 }
