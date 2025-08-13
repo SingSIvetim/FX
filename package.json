@@ -12,19 +12,25 @@
     "test": "echo 'No tests specified'"
   },
   "dependencies": {
+    "archiver": "^6.0.1",
     "express": "^4.18.2",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3",
-    "archiver": "^6.0.1"
+    "typescript": "^5.3.3"
   },
   "devDependencies": {
+    "@types/archiver": "^6.0.3",
     "@types/express": "^4.17.21",
     "@types/node": "^20.10.5"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["imagefx", "google", "ai", "image-generation"],
+  "keywords": [
+    "imagefx",
+    "google",
+    "ai",
+    "image-generation"
+  ],
   "author": "Tim/Mony",
   "license": "MIT"
 }

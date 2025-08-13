@@ -1659,6 +1659,21 @@
             try {
                 console.log('Starting download for', photos.length, 'photos');
                 
+                // Limit the number of images to prevent payload too large errors
+                const maxImages = 50;
+                if (photos.length > maxImages) {
+                    const confirmed = confirm(`You're trying to download ${photos.length} images. This might cause issues. Would you like to limit it to ${maxImages} images?`);
+                    if (confirmed) {
+                        photos = photos.slice(0, maxImages);
+                    } else {
+                        return;
+                    }
+                }
+                
+                // Show loading message
+                const loadingMsg = `Preparing download for ${photos.length} images...`;
+                console.log(loadingMsg);
+                
                 const response = await fetch('/bulk-download', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

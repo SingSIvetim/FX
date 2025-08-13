@@ -10,7 +10,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Minimal CORS to allow UI opened from other origins (file://, live-server, etc.)
 app.use((req: Request, res: Response, next: NextFunction): void => {
     res.header('Access-Control-Allow-Origin', '*');
@@ -362,18 +363,32 @@ app.post('/bulk-download', async (req: Request<{}, {}, { images: Array<{ fileNam
             throw new Error('No images provided for download');
         }
 
+        // Limit the number of images to prevent memory issues
+        const maxImages = 50;
+        if (images.length > maxImages) {
+            throw new Error(`Too many images. Maximum allowed: ${maxImages}`);
+        }
+
         // Import required modules
         const archiver = await import('archiver');
         const stream = await import('stream');
         const { Readable } = stream;
 
         // Create a ZIP archive
-        const archive = archiver.default('zip', { zlib: { level: 9 } });
+        const archive = archiver.default('zip', { zlib: { level: 6 } }); // Reduced compression level for speed
         
         // Set response headers
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Disposition', `attachment; filename="images-${new Date().toISOString().slice(0, 10)}.zip"`);
         
+        // Handle archive errors
+        archive.on('error', (err: any) => {
+            console.error('Archive error:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Failed to create archive' });
+            }
+        });
+
         // Pipe archive to response
         archive.pipe(res);
 
@@ -414,7 +429,9 @@ app.post('/bulk-download', async (req: Request<{}, {}, { images: Array<{ fileNam
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error('Bulk download error:', errorMessage);
-        res.status(500).json({ error: errorMessage });
+        if (!res.headersSent) {
+            res.status(500).json({ error: errorMessage });
+        }
     }
 });
 
