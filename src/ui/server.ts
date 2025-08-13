@@ -353,7 +353,70 @@ app.get('/ping', (_req: Request, res: Response) => {
     res.status(200).send('pong');
 });
 
+// Bulk download endpoint for creating ZIP files
+app.post('/bulk-download', async (req: Request<{}, {}, { images: Array<{ fileName: string; downloadUrl?: string; encodedImage?: string }> }>, res: Response) => {
+    console.log('[POST] /bulk-download', { imageCount: req.body?.images?.length });
+    try {
+        const { images } = req.body;
+        if (!images || !Array.isArray(images) || images.length === 0) {
+            throw new Error('No images provided for download');
+        }
 
+        // Import required modules
+        const archiver = await import('archiver');
+        const stream = await import('stream');
+        const { Readable } = stream;
+
+        // Create a ZIP archive
+        const archive = archiver.default('zip', { zlib: { level: 9 } });
+        
+        // Set response headers
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="images-${new Date().toISOString().slice(0, 10)}.zip"`);
+        
+        // Pipe archive to response
+        archive.pipe(res);
+
+        // Add each image to the archive
+        for (const image of images) {
+            try {
+                let imageBuffer: Buffer;
+                
+                if (image.encodedImage) {
+                    // Handle base64 encoded images
+                    imageBuffer = Buffer.from(image.encodedImage, 'base64');
+                } else if (image.downloadUrl) {
+                    // Handle data URLs
+                    if (image.downloadUrl.startsWith('data:')) {
+                        const base64Data = image.downloadUrl.split(',')[1];
+                        imageBuffer = Buffer.from(base64Data, 'base64');
+                    } else {
+                        // Handle regular URLs (fetch the image)
+                        const response = await fetch(image.downloadUrl);
+                        if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
+                        imageBuffer = Buffer.from(await response.arrayBuffer());
+                    }
+                } else {
+                    throw new Error('No image data provided');
+                }
+
+                // Add to archive
+                archive.append(imageBuffer, { name: image.fileName });
+            } catch (error) {
+                console.error(`Error processing image ${image.fileName}:`, error);
+                // Continue with other images even if one fails
+            }
+        }
+
+        // Finalize the archive
+        await archive.finalize();
+        
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        console.error('Bulk download error:', errorMessage);
+        res.status(500).json({ error: errorMessage });
+    }
+});
 
 // List images in a given directory with optional limit; returns count and thumbnails
 app.post('/list-images', async (req: Request<{}, {}, { path: string; limit?: number }>, res: Response) => {

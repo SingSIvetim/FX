@@ -474,6 +474,21 @@
             <h2 style="font-size:16px; margin:0 0 8px;">Folder Contents</h2>
             <div class="input-help" id="folderCount">Click "Scan Folder" to view saved images. Folder will auto-refresh after generation.</div>
             <div id="folderGrid" style="margin-top:8px; display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:8px;"></div>
+            
+            <!-- Bulk Download Section -->
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border);">
+                <h3 style="font-size:14px; margin:0 0 10px; color: var(--muted);">Bulk Download Below Folder Contents</h3>
+                <div id="bulkDownloadInfo" style="text-align: center; padding: 10px; background: var(--card); border-radius: 8px; font-size: 14px; color: var(--muted); margin-bottom: 15px;">
+                    No photos selected
+                </div>
+                <div id="bulkDownloadControls" style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+                    <button class="btn btn-purple" onclick="selectAllPhotos()">Select All</button>
+                    <button class="btn btn-purple" onclick="downloadSelectedPhotos()" disabled>Download Selected</button>
+                    <button class="btn btn-purple" onclick="downloadAllPhotos()" disabled>Download All</button>
+                    <button class="btn btn-purple" onclick="clearPhotoSelection()">Clear Selection</button>
+                    <button class="btn btn-purple" onclick="scanOutputFolder()">🔄 Refresh</button>
+                </div>
+            </div>
         </section>
         <div id="contextMenu" class="context-menu">
             <div class="context-menu-item" onclick="pasteAuthToken()">Paste Auth Token</div>
@@ -1023,7 +1038,7 @@
                         const downloadAllBtn = document.createElement('button');
                         downloadAllBtn.className = 'btn btn-purple';
                         downloadAllBtn.textContent = 'Download All';
-                        downloadAllBtn.onclick = () => downloadAllPhotos(sortedData);
+                        downloadAllBtn.onclick = () => downloadAllPhotos();
                         
                         const clearSelectionBtn = document.createElement('button');
                         clearSelectionBtn.className = 'btn btn-red';
@@ -1069,7 +1084,8 @@
                             if (item.prompt) {
                                 const promptTxt = String(item.prompt);
                                 const promptShort = promptTxt ? (promptTxt.length > 30 ? promptTxt.slice(0, 30) + '…' : promptTxt) : '';
-                                caption = `${item.seed ? 'Seed: ' + item.seed + ' • ' : ''}${promptShort}`;
+                                const seedValue = item.seed || (item.meta && item.meta.seed);
+                                caption = `${seedValue ? 'Seed: ' + seedValue + ' • ' : ''}${promptShort}`;
                             }
                             
                             const img = document.createElement('img');
@@ -1202,7 +1218,7 @@
                     const downloadAllBtn = document.createElement('button');
                     downloadAllBtn.className = 'btn btn-purple';
                     downloadAllBtn.textContent = 'Download All';
-                    downloadAllBtn.onclick = () => downloadAllPhotos(sortedItems);
+                                            downloadAllBtn.onclick = () => downloadAllPhotos();
                     
                     const clearSelectionBtn = document.createElement('button');
                     clearSelectionBtn.className = 'btn btn-red';
@@ -1453,7 +1469,7 @@
             const downloadAllBtn = document.createElement('button');
             downloadAllBtn.className = 'btn btn-purple';
             downloadAllBtn.textContent = 'Download All';
-            downloadAllBtn.onclick = () => downloadAllPhotos(data);
+                                    downloadAllBtn.onclick = () => downloadAllPhotos();
             
             const clearSelectionBtn = document.createElement('button');
             clearSelectionBtn.className = 'btn btn-red';
@@ -1495,12 +1511,13 @@
                 card.dataset.index = index;
                 card.onclick = () => togglePhotoSelection(index);
                 
-                let caption = item.fileName || item.name;
-                if (item.prompt) {
-                    const promptTxt = String(item.prompt);
-                    const promptShort = promptTxt ? (promptTxt.length > 30 ? promptTxt.slice(0, 30) + '…' : promptTxt) : '';
-                    caption = `${item.seed ? 'Seed: ' + item.seed + ' • ' : ''}${promptShort}`;
-                }
+                                        let caption = item.fileName || item.name;
+                        if (item.prompt) {
+                            const promptTxt = String(item.prompt);
+                            const promptShort = promptTxt ? (promptTxt.length > 30 ? promptTxt.slice(0, 30) + '…' : promptTxt) : '';
+                            const seedValue = item.seed || (item.meta && item.meta.seed);
+                            caption = `${seedValue ? 'Seed: ' + seedValue + ' • ' : ''}${promptShort}`;
+                        }
                 
                 const img = document.createElement('img');
                 img.alt = item.fileName || item.name;
@@ -1584,15 +1601,63 @@
         
         function updatePhotoSelectionInfo() {
             const info = document.getElementById('photoSelectionInfo');
-            if (!info) return;
+            const bulkInfo = document.getElementById('bulkDownloadInfo');
+            const selectAllBtn = document.querySelector('#bulkDownloadControls button[onclick="selectAllPhotos()"]');
+            const downloadSelectedBtn = document.querySelector('#bulkDownloadControls button[onclick="downloadSelectedPhotos()"]');
+            const downloadAllBtn = document.querySelector('#bulkDownloadControls button[onclick="downloadAllPhotos()"]');
+            const clearSelectionBtn = document.querySelector('#bulkDownloadControls button[onclick="clearPhotoSelection()"]');
             
-            if (window.selectedPhotoIndices.size === 0) {
-                info.textContent = 'No photos selected';
-            } else if (window.selectedPhotoIndices.size === window.currentPhotosData.length) {
-                info.textContent = `All ${window.currentPhotosData.length} photos selected`;
-            } else {
-                info.textContent = `${window.selectedPhotoIndices.size} of ${window.currentPhotosData.length} photos selected`;
+            // Update old selection info if it exists
+            if (info) {
+                if (window.selectedPhotoIndices.size === 0) {
+                    info.textContent = 'No photos selected';
+                } else if (window.selectedPhotoIndices.size === window.currentPhotosData.length) {
+                    info.textContent = `All ${window.currentPhotosData.length} photos selected`;
+                } else {
+                    info.textContent = `${window.selectedPhotoIndices.size} of ${window.currentPhotosData.length} photos selected`;
+                }
             }
+            
+            // Update new bulk download info
+            if (bulkInfo) {
+                if (window.selectedPhotoIndices.size === 0) {
+                    bulkInfo.textContent = 'No photos selected';
+                } else if (window.selectedPhotoIndices.size === window.currentPhotosData.length) {
+                    bulkInfo.textContent = `All ${window.currentPhotosData.length} photos selected`;
+                } else {
+                    bulkInfo.textContent = `${window.selectedPhotoIndices.size} of ${window.currentPhotosData.length} photos selected`;
+                }
+            }
+            
+            // Enable/disable buttons in bulk download section
+            if (selectAllBtn) {
+                selectAllBtn.disabled = !window.currentPhotosData || window.currentPhotosData.length === 0;
+            }
+            if (downloadSelectedBtn) {
+                downloadSelectedBtn.disabled = window.selectedPhotoIndices.size === 0;
+            }
+            if (downloadAllBtn) {
+                downloadAllBtn.disabled = !window.currentPhotosData || window.currentPhotosData.length === 0;
+            }
+            if (clearSelectionBtn) {
+                clearSelectionBtn.disabled = window.selectedPhotoIndices.size === 0;
+            }
+            
+            // Also update any dynamically created download buttons
+            const dynamicDownloadSelectedBtns = document.querySelectorAll('button[onclick*="downloadSelectedPhotos"]');
+            const dynamicDownloadAllBtns = document.querySelectorAll('button[onclick*="downloadAllPhotos"]');
+            
+            dynamicDownloadSelectedBtns.forEach(btn => {
+                if (btn !== downloadSelectedBtn) {
+                    btn.disabled = window.selectedPhotoIndices.size === 0;
+                }
+            });
+            
+            dynamicDownloadAllBtns.forEach(btn => {
+                if (btn !== downloadAllBtn) {
+                    btn.disabled = !window.currentPhotosData || window.currentPhotosData.length === 0;
+                }
+            });
         }
         
         function selectAllPhotos() {
@@ -1620,13 +1685,13 @@
             await downloadPhotosZip(selectedPhotos, 'selected-photos');
         }
         
-        async function downloadAllPhotos(data) {
-            if (data.length === 0) {
+        async function downloadAllPhotos() {
+            if (!window.currentPhotosData || window.currentPhotosData.length === 0) {
                 alert('No photos to download');
                 return;
             }
             
-            await downloadPhotosZip(data, 'all-photos');
+            await downloadPhotosZip(window.currentPhotosData, 'all-photos');
         }
         
         async function downloadPhotosZip(photos, filename) {
@@ -1682,8 +1747,21 @@
             
             // Set metadata
             document.getElementById('metaFile').textContent = item.fileName || item.name || 'Unknown';
-            document.getElementById('metaSeed').textContent = item.seed || 'Random';
-            document.getElementById('metaPrompt').textContent = item.prompt || 'No prompt';
+            
+            // Handle seed display - check both direct seed and meta.seed
+            let seedValue = item.seed;
+            if (!seedValue && item.meta && item.meta.seed) {
+                seedValue = item.meta.seed;
+            }
+            document.getElementById('metaSeed').textContent = seedValue || 'Random';
+            
+            // Handle prompt display - check both direct prompt and meta.prompt
+            let promptValue = item.prompt;
+            if (!promptValue && item.meta && item.meta.prompt) {
+                promptValue = item.meta.prompt;
+            }
+            document.getElementById('metaPrompt').textContent = promptValue || 'No prompt';
+            
             document.getElementById('metaSaved').textContent = item.savedAt ? new Date(item.savedAt).toLocaleString() : 'Unknown';
             document.getElementById('metaModel').textContent = item.model || 'Unknown';
             document.getElementById('metaAspect').textContent = item.aspectRatio || 'Unknown';
