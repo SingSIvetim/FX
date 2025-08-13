@@ -483,8 +483,8 @@
                 </div>
                 <div id="bulkDownloadControls" style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
                     <button class="btn btn-purple" onclick="selectAllPhotos()">Select All</button>
-                    <button class="btn btn-purple" onclick="downloadSelectedPhotos()" disabled>Download Selected</button>
-                    <button class="btn btn-purple" onclick="downloadAllPhotos()" disabled>Download All</button>
+                    <button class="btn btn-purple" onclick="downloadSelectedPhotos()" disabled>Download Selected Photos</button>
+                    <button class="btn btn-purple" onclick="downloadAllPhotos()" disabled>Download All Photos</button>
                     <button class="btn btn-purple" onclick="clearPhotoSelection()">Clear Selection</button>
                     <button class="btn btn-purple" onclick="scanOutputFolder()">🔄 Refresh</button>
                 </div>
@@ -1032,12 +1032,12 @@
                         
                         const downloadSelectedBtn = document.createElement('button');
                         downloadSelectedBtn.className = 'btn btn-purple';
-                        downloadSelectedBtn.textContent = 'Download Selected';
+                        downloadSelectedBtn.textContent = 'Download Selected Photos';
                         downloadSelectedBtn.onclick = () => downloadSelectedPhotos();
                         
                         const downloadAllBtn = document.createElement('button');
                         downloadAllBtn.className = 'btn btn-purple';
-                        downloadAllBtn.textContent = 'Download All';
+                        downloadAllBtn.textContent = 'Download All Photos';
                         downloadAllBtn.onclick = () => downloadAllPhotos();
                         
                         const clearSelectionBtn = document.createElement('button');
@@ -1199,12 +1199,12 @@
                     
                     const downloadSelectedBtn = document.createElement('button');
                     downloadSelectedBtn.className = 'btn btn-purple';
-                    downloadSelectedBtn.textContent = 'Download Selected';
+                    downloadSelectedBtn.textContent = 'Download Selected Photos';
                     downloadSelectedBtn.onclick = () => downloadSelectedPhotos();
                     
                     const downloadAllBtn = document.createElement('button');
                     downloadAllBtn.className = 'btn btn-purple';
-                    downloadAllBtn.textContent = 'Download All';
+                    downloadAllBtn.textContent = 'Download All Photos';
                                             downloadAllBtn.onclick = () => downloadAllPhotos();
                     
                     const clearSelectionBtn = document.createElement('button');
@@ -1437,12 +1437,12 @@
             
             const downloadSelectedBtn = document.createElement('button');
             downloadSelectedBtn.className = 'btn btn-purple';
-            downloadSelectedBtn.textContent = 'Download Selected';
+            downloadSelectedBtn.textContent = 'Download Selected Photos';
             downloadSelectedBtn.onclick = () => downloadSelectedPhotos();
             
             const downloadAllBtn = document.createElement('button');
             downloadAllBtn.className = 'btn btn-purple';
-            downloadAllBtn.textContent = 'Download All';
+            downloadAllBtn.textContent = 'Download All Photos';
                                     downloadAllBtn.onclick = () => downloadAllPhotos();
             
             const clearSelectionBtn = document.createElement('button');
@@ -1656,70 +1656,8 @@
         }
         
         async function downloadPhotosZip(photos, filename) {
-            try {
-                console.log('Starting download for', photos.length, 'photos');
-                
-                // Limit the number of images to prevent payload too large errors
-                const maxImages = 20; // Reduced limit for Railway
-                if (photos.length > maxImages) {
-                    const confirmed = confirm(`You're trying to download ${photos.length} images. Railway has payload limits. Would you like to limit it to ${maxImages} images?`);
-                    if (confirmed) {
-                        photos = photos.slice(0, maxImages);
-                    } else {
-                        return;
-                    }
-                }
-                
-                // Show loading message
-                const loadingMsg = `Preparing download for ${photos.length} images...`;
-                console.log(loadingMsg);
-                
-                // For Railway, use a more efficient approach - only send file names and URLs
-                const response = await fetch('/bulk-download', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        images: photos.map(photo => ({
-                            fileName: photo.fileName || photo.name,
-                            downloadUrl: photo.downloadUrl || photo.dataUrl,
-                            // Don't send encodedImage for Railway to reduce payload size
-                            encodedImage: null
-                        }))
-                    })
-                });
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Server error:', response.status, errorText);
-                    
-                    // If it's still a payload too large error, suggest individual downloads
-                    if (response.status === 413) {
-                        const useIndividual = confirm('Payload too large for bulk download. Would you like to download images individually instead?');
-                        if (useIndividual) {
-                            await downloadImagesIndividually(photos);
-                            return;
-                        }
-                    }
-                    
-                    throw new Error(`Download failed: ${response.status} - ${errorText}`);
-                }
-                
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.zip`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-                
-                console.log('Download completed successfully');
-                
-            } catch (error) {
-                console.error('Download error:', error);
-                alert(`Error downloading photos: ${error.message}`);
-            }
+            // Download images individually (no ZIP, no gallery.html) for "Download Selected" and "Download All"
+            await downloadImagesIndividually(photos);
         }
         
         async function downloadImagesIndividually(photos) {
@@ -1734,6 +1672,9 @@
                         link.href = photo.downloadUrl;
                     } else if (photo.dataUrl) {
                         link.href = photo.dataUrl;
+                    } else if (photo.encodedImage) {
+                        // Create data URL from base64 encoded image
+                        link.href = `data:image/png;base64,${photo.encodedImage}`;
                     } else {
                         console.warn('No download URL for photo:', photo.fileName || photo.name);
                         continue;
