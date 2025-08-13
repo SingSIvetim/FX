@@ -1660,9 +1660,9 @@
                 console.log('Starting download for', photos.length, 'photos');
                 
                 // Limit the number of images to prevent payload too large errors
-                const maxImages = 50;
+                const maxImages = 20; // Reduced limit for Railway
                 if (photos.length > maxImages) {
-                    const confirmed = confirm(`You're trying to download ${photos.length} images. This might cause issues. Would you like to limit it to ${maxImages} images?`);
+                    const confirmed = confirm(`You're trying to download ${photos.length} images. Railway has payload limits. Would you like to limit it to ${maxImages} images?`);
                     if (confirmed) {
                         photos = photos.slice(0, maxImages);
                     } else {
@@ -1674,6 +1674,7 @@
                 const loadingMsg = `Preparing download for ${photos.length} images...`;
                 console.log(loadingMsg);
                 
+                // For Railway, use a more efficient approach - only send file names and URLs
                 const response = await fetch('/bulk-download', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1681,7 +1682,8 @@
                         images: photos.map(photo => ({
                             fileName: photo.fileName || photo.name,
                             downloadUrl: photo.downloadUrl || photo.dataUrl,
-                            encodedImage: photo.encodedImage
+                            // Don't send encodedImage for Railway to reduce payload size
+                            encodedImage: null
                         }))
                     })
                 });
@@ -1689,6 +1691,16 @@
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Server error:', response.status, errorText);
+                    
+                    // If it's still a payload too large error, suggest individual downloads
+                    if (response.status === 413) {
+                        const useIndividual = confirm('Payload too large for bulk download. Would you like to download images individually instead?');
+                        if (useIndividual) {
+                            await downloadImagesIndividually(photos);
+                            return;
+                        }
+                    }
+                    
                     throw new Error(`Download failed: ${response.status} - ${errorText}`);
                 }
                 
@@ -1707,6 +1719,40 @@
             } catch (error) {
                 console.error('Download error:', error);
                 alert(`Error downloading photos: ${error.message}`);
+            }
+        }
+        
+        async function downloadImagesIndividually(photos) {
+            try {
+                console.log('Downloading images individually...');
+                
+                for (let i = 0; i < photos.length; i++) {
+                    const photo = photos[i];
+                    const link = document.createElement('a');
+                    
+                    if (photo.downloadUrl) {
+                        link.href = photo.downloadUrl;
+                    } else if (photo.dataUrl) {
+                        link.href = photo.dataUrl;
+                    } else {
+                        console.warn('No download URL for photo:', photo.fileName || photo.name);
+                        continue;
+                    }
+                    
+                    link.download = photo.fileName || photo.name;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Small delay between downloads to prevent browser issues
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                console.log('Individual downloads completed');
+                
+            } catch (error) {
+                console.error('Individual download error:', error);
+                alert(`Error downloading images individually: ${error.message}`);
             }
         }
 
