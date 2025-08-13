@@ -1053,20 +1053,7 @@
                             scanOutputFolder();
                         };
                         
-                        bulkControls.appendChild(selectAllBtn);
-                        bulkControls.appendChild(downloadSelectedBtn);
-                        bulkControls.appendChild(downloadAllBtn);
-                        bulkControls.appendChild(clearSelectionBtn);
-                        bulkControls.appendChild(refreshBtn);
-                        
-                        container.appendChild(bulkControls);
-                        
-                        // Create selection info
-                        const selectionInfo = document.createElement('div');
-                        selectionInfo.id = 'photoSelectionInfo';
-                        selectionInfo.style.cssText = 'text-align: center; margin-bottom: 15px; padding: 10px; background: var(--card); border-radius: 8px; font-size: 14px; color: var(--muted);';
-                        selectionInfo.textContent = 'No photos selected';
-                        container.appendChild(selectionInfo);
+
                         
                         // Store photos data globally for selection
                         window.currentPhotosData = sortedData;
@@ -1233,20 +1220,7 @@
                         scanOutputFolder();
                     };
                     
-                    bulkControls.appendChild(selectAllBtn);
-                    bulkControls.appendChild(downloadSelectedBtn);
-                    bulkControls.appendChild(downloadAllBtn);
-                    bulkControls.appendChild(clearSelectionBtn);
-                    bulkControls.appendChild(refreshBtn);
-                    
-                    container.appendChild(bulkControls);
-                    
-                    // Create selection info
-                    const selectionInfo = document.createElement('div');
-                    selectionInfo.id = 'photoSelectionInfo';
-                    selectionInfo.style.cssText = 'text-align: center; margin-bottom: 15px; padding: 10px; background: var(--card); border-radius: 8px; font-size: 14px; color: var(--muted);';
-                    selectionInfo.textContent = 'No photos selected';
-                    container.appendChild(selectionInfo);
+
                     
                     // Store photos data globally for selection
                     window.currentPhotosData = sortedItems;
@@ -1484,20 +1458,7 @@
                 scanOutputFolder();
             };
             
-            bulkControls.appendChild(selectAllBtn);
-            bulkControls.appendChild(downloadSelectedBtn);
-            bulkControls.appendChild(downloadAllBtn);
-            bulkControls.appendChild(clearSelectionBtn);
-            bulkControls.appendChild(refreshBtn);
-            
-            container.appendChild(bulkControls);
-            
-            // Create selection info
-            const selectionInfo = document.createElement('div');
-            selectionInfo.id = 'photoSelectionInfo';
-            selectionInfo.style.cssText = 'text-align: center; margin-bottom: 15px; padding: 10px; background: var(--card); border-radius: 8px; font-size: 14px; color: var(--muted);';
-            selectionInfo.textContent = 'No photos selected';
-            container.appendChild(selectionInfo);
+
             
             // Store photos data globally for selection
             window.currentPhotosData = data;
@@ -1696,6 +1657,8 @@
         
         async function downloadPhotosZip(photos, filename) {
             try {
+                console.log('Starting download for', photos.length, 'photos');
+                
                 const response = await fetch('/bulk-download', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1709,7 +1672,9 @@
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Download failed');
+                    const errorText = await response.text();
+                    console.error('Server error:', response.status, errorText);
+                    throw new Error(`Download failed: ${response.status} - ${errorText}`);
                 }
                 
                 const blob = await response.blob();
@@ -1722,9 +1687,11 @@
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
                 
+                console.log('Download completed successfully');
+                
             } catch (error) {
                 console.error('Download error:', error);
-                alert('Error downloading photos');
+                alert(`Error downloading photos: ${error.message}`);
             }
         }
 
