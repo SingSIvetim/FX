@@ -5,7 +5,8 @@ const https = require('https');
 const http = require('http');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // CORS headers
 app.use((req, res, next) => {
@@ -234,6 +235,99 @@ app.get('/bulk-download', (req, res) => {
     } catch (error) {
         console.error('[DEBUG] Bulk download error:', error);
         res.status(500).json({ error: 'Failed to create bulk download' });
+    }
+});
+
+// POST bulk download endpoint for creating ZIP files from frontend
+app.post('/bulk-download', async (req, res) => {
+    console.log('[POST] /bulk-download', { imageCount: req.body?.images?.length });
+    try {
+        const { images } = req.body;
+        if (!images || !Array.isArray(images) || images.length === 0) {
+            throw new Error('No images provided for download');
+        }
+
+        // Limit the number of images to prevent memory issues
+        const maxImages = 50;
+        if (images.length > maxImages) {
+            throw new Error(`Too many images. Maximum allowed: ${maxImages}`);
+        }
+
+        // Import required modules
+        const archiver = require('archiver');
+
+        // Create a ZIP archive
+        const archive = archiver('zip', { zlib: { level: 6 } }); // Reduced compression level for speed
+        
+        // Set response headers
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="images-${new Date().toISOString().slice(0, 10)}.zip"`);
+        
+        // Handle archive errors
+        archive.on('error', (err) => {
+            console.error('Archive error:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Failed to create archive' });
+            }
+        });
+
+        // Pipe archive to response
+        archive.pipe(res);
+
+        // Add each image to the archive
+        for (const image of images) {
+            try {
+                let imageBuffer;
+                
+                if (image.encodedImage) {
+                    // Handle base64 encoded images
+                    imageBuffer = Buffer.from(image.encodedImage, 'base64');
+                } else if (image.downloadUrl) {
+                    // Handle data URLs
+                    if (image.downloadUrl.startsWith('data:')) {
+                        const base64Data = image.downloadUrl.split(',')[1];
+                        imageBuffer = Buffer.from(base64Data, 'base64');
+                    } else {
+                        // Handle regular URLs (fetch the image)
+                        const https = require('https');
+                        const http = require('http');
+                        
+                        const url = new URL(image.downloadUrl);
+                        const client = url.protocol === 'https:' ? https : http;
+                        
+                        const response = await new Promise((resolve, reject) => {
+                            const req = client.get(url, (res) => {
+                                const chunks = [];
+                                res.on('data', chunk => chunks.push(chunk));
+                                res.on('end', () => resolve(Buffer.concat(chunks)));
+                                res.on('error', reject);
+                            });
+                            req.on('error', reject);
+                        });
+                        
+                        imageBuffer = response;
+                    }
+                } else {
+                    throw new Error('No image data provided');
+                }
+
+                // Add to archive
+                archive.append(imageBuffer, { name: image.fileName });
+            } catch (error) {
+                console.error(`Error processing image ${image.fileName}:`, error);
+                // Continue with other images even if one fails
+            }
+        }
+
+        // Finalize the archive
+        await archive.finalize();
+        
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        console.error('Bulk download error:', errorMessage);
+        if (!res.headersSent) {
+            res.status(500).json({ error: errorMessage });
+        }
     }
 });
 
